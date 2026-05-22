@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../models/product.dart';
@@ -6,7 +7,6 @@ import '../widgets/product_card.dart';
 import '../widgets/checkout_blade.dart';
 import '../widgets/side_nav_bar.dart';
 import 'package:provider/provider.dart';
-import '../providers/stock_provider.dart';
 import '../providers/cart_provider.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
@@ -15,7 +15,9 @@ import 'stock_screen.dart';
 import 'menu_screen.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  final String role; // Menerima data role ('owner' / 'kasir') dari login_screen
+
+  const MainShell({super.key, required this.role});
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -41,7 +43,7 @@ class _MainShellState extends State<MainShell> {
             ).then((_) {
               _customerNameCtrl.clear();
               if (!isWide && Navigator.canPop(context)) {
-                Navigator.pop(context); // Close drawer if open
+                Navigator.pop(context); // Tutup drawer jika di HP
               }
             });
           },
@@ -50,16 +52,25 @@ class _MainShellState extends State<MainShell> {
         return Scaffold(
           body: Row(
             children: [
-              // Left: Sidebar
+              // KIRI: Sidebar Navigasi dengan filter hak akses role
               SideNavBar(
                 activeItem: _activeNav,
-                onItemSelected: (item) => setState(() => _activeNav = item),
+                onItemSelected: (item) {
+                  if (widget.role == 'kasir' && 
+                      (item == NavItem.dashboard || item == NavItem.stock || item == NavItem.menu)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Akses Ditolak: Menu ini hanya untuk Owner! 🔒')),
+                    );
+                    return;
+                  }
+                  setState(() => _activeNav = item);
+                },
               ),
-              // Center: Main Content
+              // TENGAH: Workspace Utama
               Expanded(
                 child: _buildContent(),
               ),
-              // Right: Checkout Blade (only on register screen for wide screens)
+              // KANAN: Checkout Blade Belanjaan
               if (isWide && showBlade) 
                 SizedBox(width: 320, child: checkoutBladeWidget),
             ],
@@ -94,9 +105,18 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildContent() {
+    if (widget.role == 'kasir' && 
+        (_activeNav == NavItem.dashboard || _activeNav == NavItem.stock || _activeNav == NavItem.menu)) {
+      return const Scaffold(
+        body: Center(
+          child: Text('Maaf, halaman ini dikunci untuk akun Kasir.'),
+        ),
+      );
+    }
+
     switch (_activeNav) {
       case NavItem.register:
-        return const PosMainCanvas();
+        return PosMainCanvas(role: widget.role); 
       case NavItem.history:
         return const HistoryScreen();
       case NavItem.dashboard:
@@ -112,7 +132,9 @@ class _MainShellState extends State<MainShell> {
 }
 
 class PosMainCanvas extends StatefulWidget {
-  const PosMainCanvas({super.key});
+  final String role; 
+
+  const PosMainCanvas({super.key, required this.role});
 
   @override
   State<PosMainCanvas> createState() => _PosMainCanvasState();
@@ -122,16 +144,14 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
   String _selectedCategory = 'ALL';
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
+  final _supabase = Supabase.instance.client;
 
-  List<Product> _getFilteredProducts(BuildContext context) {
-    final products = context.watch<StockProvider>().products;
-    return products.where((p) {
-      final matchCat = _selectedCategory == 'ALL' || p.category == _selectedCategory;
-      final matchSearch = _searchQuery.isEmpty ||
-          p.name.toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchCat && matchSearch;
-    }).toList();
-  }
+  // Daftar kategori statis penyesuai tab navigasi UI kasir
+  final List<String> _uiCategories = [
+    'ALL', 'KHS', 'Coklat', 'Green Tea', 'Milo', 'Taro', 
+    'Alpukat', 'Strawberry', 'Durian', 'Mangga', 
+    'Tiramisu', 'Vanila X Red Velvet', 'Traditional Series', 'Drinks'
+  ];
 
   @override
   void dispose() {
@@ -146,18 +166,70 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Bar
           _buildTopBar(),
-          // Category Tabs
           _buildCategoryTabs(),
-          // Product Grid
-          Expanded(child: _buildProductGrid(context)),
+          // Menggunakan StreamBuilder Real-time Supabase agar data langsung sinkron
+          Expanded(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _supabase.from('product').stream(primaryKey: ['id']).order('name'),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('Belum ada produk di database.'));
+                }
+
+                // Transformasi data raw Map dari Supabase menjadi Object Model Product Flutter kamu
+                final allProducts = snapshot.data!.map((map) {
+                  return Product(
+                    id: map['id'].toString(),
+                    name: map['name'] ?? '',
+                    category: map['category'] ?? 'Minuman',
+                    price: (map['price'] as num).toDouble(),
+                    imageEmoji: map['category'].toString().toLowerCase().contains('coklat') ? '🍫' : '🍵',
+                    stock: map['stock'] ?? 0,
+                    minStock: 10,
+                  );
+                }).toList();
+
+                // Proses Filter Berdasarkan Pencarian & Tab Kategori
+                final filteredProducts = allProducts.where((p) {
+                  final matchCat = _selectedCategory == 'ALL' ||
+                      p.category.toLowerCase() == _selectedCategory.toLowerCase();
+                  final matchSearch = _searchQuery.isEmpty ||
+                      p.name.toLowerCase().contains(_searchQuery.toLowerCase());
+                  return matchCat && matchSearch;
+                }).toList();
+
+                if (filteredProducts.isEmpty) {
+                  return const Center(
+                    child: Text('Tidak ada produk menu yang cocok.'),
+                  );
+                }
+
+                return GridView.builder(
+                  padding: const EdgeInsets.all(24),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.82,
+                  ),
+                  itemCount: filteredProducts.length,
+                  itemBuilder: (context, index) => ProductCard(product: filteredProducts[index]),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildTopBar() {
+    String avatarLetter = widget.role == 'owner' ? 'O' : 'K';
+
     return Container(
       height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -174,7 +246,7 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
               children: [
                 Text('Tanjosu Cianjur', style: AppTextStyles.headlineSm, maxLines: 1, overflow: TextOverflow.ellipsis),
                 Text(
-                  _getGreeting(),
+                  _getGreeting(widget.role), 
                   style: AppTextStyles.labelSm,
                   maxLines: 1, 
                   overflow: TextOverflow.ellipsis,
@@ -183,7 +255,6 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
             ),
           ),
           const SizedBox(width: 16),
-          // Search
           Flexible(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 280),
@@ -214,7 +285,6 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
             ),
           ),
           const SizedBox(width: 16),
-          // Avatar
           Container(
             width: 44,
             height: 44,
@@ -223,7 +293,10 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Text('K', style: AppTextStyles.headlineSm.copyWith(color: AppColors.primary, fontSize: 18)),
+              child: Text(
+                avatarLetter, 
+                style: AppTextStyles.headlineSm.copyWith(color: AppColors.primary, fontSize: 18)
+              ),
             ),
           ),
         ],
@@ -238,7 +311,7 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: productCategories.map((cat) {
+        children: _uiCategories.map((cat) {
           final isActive = cat == _selectedCategory;
           return GestureDetector(
             onTap: () => setState(() => _selectedCategory = cat),
@@ -263,38 +336,14 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
     );
   }
 
-  Widget _buildProductGrid(BuildContext context) {
-    final products = _getFilteredProducts(context);
-    if (products.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('🔍', style: TextStyle(fontSize: 48)),
-            const SizedBox(height: 12),
-            Text('Tidak ada produk ditemukan', style: AppTextStyles.bodyMd),
-          ],
-        ),
-      );
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.all(24),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.82,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) => ProductCard(product: products[index]),
-    );
-  }
-
-  String _getGreeting() {
+  String _getGreeting(String role) {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Selamat Pagi, Kasir ☀️';
-    if (hour < 17) return 'Selamat Siang, Kasir 🌤️';
-    return 'Selamat Malam, Kasir 🌙';
+    String timeGreeting = 'Pagi';
+    if (hour >= 12 && hour < 17) timeGreeting = 'Siang';
+    if (hour >= 17) timeGreeting = 'Malam';
+
+    String displayRole = role == 'owner' ? 'Owner 👑' : 'Kasir ☀️';
+    return 'Selamat $timeGreeting, $displayRole';
   }
 }
 

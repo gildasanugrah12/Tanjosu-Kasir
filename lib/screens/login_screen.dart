@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 1. Sukses Import Supabase
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../widgets/buttons.dart';
@@ -13,8 +14,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
-  final _emailCtrl = TextEditingController(text: 'kasir@tanjosu.id');
-  final _passCtrl = TextEditingController(text: '••••••••');
+  final _emailCtrl = TextEditingController(text: '');
+  final _passCtrl = TextEditingController(text: '');
   bool _obscure = true;
   bool _isLoading = false;
   late AnimationController _fadeCtrl;
@@ -36,19 +37,70 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     super.dispose();
   }
 
+  // 2. FUNGSI LOGIN SUDAH TERHUBUNG KE SUPABASE BACKEND
   Future<void> _login() async {
+    // Validasi input sederhana agar hemat kuota API
+    if (_emailCtrl.text.trim().isEmpty || _passCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email dan Password tidak boleh kosong!')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, a1, a2) => const MainShell(),
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 400),
-      ),
-    );
+
+    try {
+      // Langkah A: Coba login menggunakan Email & Password ke Supabase Auth
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text.trim(),
+      );
+
+      if (response.user != null) {
+        final userId = response.user!.id;
+
+        // Langkah B: Ambil data role ('owner' / 'kasir') dari tabel profiles kamu
+        final userData = await Supabase.instance.client
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        final String role = userData['role'] ?? 'kasir';
+
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+
+        // Notifikasi Berhasil Berdasarkan Role
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Selamat Datang! Masuk sebagai ${role.toUpperCase()}')),
+        );
+
+        // 🔴 Langkah C: Pindahkan user ke halaman utama (MainShell) dengan membawa parameter role
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (_, a1, a2) => MainShell(role: role), // ◄ Diisi di sini
+            transitionsBuilder: (_, anim, __, child) =>
+                FadeTransition(opacity: anim, child: child),
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
+      }
+    } on AuthException catch (error) {
+      // Tangani jika salah email/password dari sistem Supabase
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message), backgroundColor: Colors.red),
+      );
+    } catch (error) {
+      // Tangani error umum seperti tidak ada internet
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Terjadi kesalahan jaringan atau sistem.'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -79,7 +131,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
                     Row(
                       children: [
                         Container(
@@ -106,7 +157,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       ],
                     ),
                     if (isWide) const Spacer() else const SizedBox(height: 32),
-                    // Decorative emojis
                     const Text('🍵', style: TextStyle(fontSize: 64)),
                     const SizedBox(height: 24),
                     Text(
@@ -126,7 +176,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       ),
                     ),
                     if (isWide) const Spacer() else const SizedBox(height: 32),
-                    // Feature chips
                     Wrap(
                       spacing: 10,
                       runSpacing: 10,
@@ -172,7 +221,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         ),
                         const SizedBox(height: 40),
 
-                        // Email
                         Text('Email', style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurface)),
                         const SizedBox(height: 8),
                         TextField(
@@ -186,7 +234,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         ),
                         const SizedBox(height: 20),
 
-                        // Password
                         Text('Password', style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurface)),
                         const SizedBox(height: 8),
                         TextField(
@@ -218,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                           label: 'Masuk',
                           icon: Icons.arrow_forward_rounded,
                           isLoading: _isLoading,
-                          onPressed: _login,
+                          onPressed: _login, // Memanggil fungsi login Supabase di atas
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -235,7 +282,12 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         SecondaryButton(
                           label: 'Masuk sebagai Demo',
                           icon: Icons.play_arrow_rounded,
-                          onPressed: _login,
+                          onPressed: () {
+                            // 🔴 Untuk Demo, otomatis diset sebagai 'owner' agar kamu bisa tes semua halaman
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const MainShell(role: 'owner')),
+                            );
+                          },
                         ),
                       ],
                     ),

@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.9.2
+  sdk: ^3.8.1
 
 dependencies:
   flutter:
@@ -13,6 +13,7 @@ dependencies:
   google_fonts: ^6.2.1
   provider: ^6.1.2
   intl: ^0.19.0
+  supabase_flutter: ^2.12.4
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 1. Berhasil ditambahkan
 import 'core/theme/app_theme.dart';
 import 'providers/cart_provider.dart';
 import 'providers/stock_provider.dart';
@@ -8,8 +9,18 @@ import 'providers/transaction_provider.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
+  // Memastikan komponen internal Flutter siap
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Memastikan format tanggal lokal Indonesia siap
   await initializeDateFormatting('id_ID', null);
+
+  // 2. Inisialisasi Database Supabase milikmu dimasukkan di sini
+  await Supabase.initialize(
+    url: 'https://mjzsuckuxkiskfpkvbbv.supabase.co', // ◄ GANTI DENGAN URL SUPABASE ASLI MILIKMU
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qenN1Y2t1eGtpc2tmcGt2YmJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzOTMzMTgsImV4cCI6MjA5NDk2OTMxOH0.7TZ-Ra61NqyHi8T_xYS21DhxjX9oIngdjxf7H9qn7_c', // ◄ GANTI DENGAN ANON KEY ASLI MILIKMU
+  );
+
   runApp(const TanjosuApp());
 }
 
@@ -28,7 +39,7 @@ class TanjosuApp extends StatelessWidget {
         title: 'Tanjosu Cianjur',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const LoginScreen(),
+        home: const LoginScreen(), // Halaman pertama yang akan muncul saat app dibuka
       ),
     );
   }
