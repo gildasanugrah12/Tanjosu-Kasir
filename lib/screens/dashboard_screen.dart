@@ -2,12 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
+import '../models/report_data.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  ReportPeriod _selectedPeriod = ReportPeriod.harian;
+
+  @override
   Widget build(BuildContext context) {
+    final summary = getSummary(_selectedPeriod);
+    final salesData = getSalesData(_selectedPeriod);
+    final topProducts = getTopProducts(_selectedPeriod);
+    final periodLabel = getPeriodLabel(_selectedPeriod);
     final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return Container(
@@ -15,12 +27,50 @@ class DashboardScreen extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Text('Laporan & Analitik', style: AppTextStyles.headlineMd),
-            const SizedBox(height: 4),
-            Text('Kamis, 8 Mei 2026 · Pembaruan real-time', style: AppTextStyles.labelSm),
+            // Header & Tabs
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Laporan & Analitik', style: AppTextStyles.headlineMd),
+                    const SizedBox(height: 4),
+                    Text('Pembaruan real-time', style: AppTextStyles.labelSm),
+                  ],
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: ReportPeriod.values.map((period) {
+                      final isSelected = _selectedPeriod == period;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedPeriod = period),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            period.name.toUpperCase(),
+                            style: AppTextStyles.labelSm.copyWith(
+                              color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
 
             // KPI Cards
@@ -28,24 +78,24 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 _KpiCard(
                   icon: '💰',
-                  label: 'Pendapatan Hari Ini',
-                  value: fmt.format(834000),
-                  change: '+12.4%',
-                  positive: true,
+                  label: 'Pendapatan $periodLabel',
+                  value: fmt.format(summary.totalRevenue),
+                  change: '${summary.revenueChange > 0 ? '+' : ''}${summary.revenueChange}%',
+                  positive: summary.revenueChange >= 0,
                 ),
                 const SizedBox(width: 16),
                 _KpiCard(
                   icon: '🧾',
-                  label: 'Transaksi Hari Ini',
-                  value: '47',
-                  change: '+8 dari kemarin',
-                  positive: true,
+                  label: 'Transaksi',
+                  value: '${summary.totalTransactions}',
+                  change: '${summary.transactionChange > 0 ? '+' : ''}${summary.transactionChange}%',
+                  positive: summary.transactionChange >= 0,
                 ),
                 const SizedBox(width: 16),
                 _KpiCard(
                   icon: '☕',
                   label: 'Item Terjual',
-                  value: '128',
+                  value: '${summary.totalItems}',
                   change: '+5.2%',
                   positive: true,
                 ),
@@ -53,7 +103,7 @@ class DashboardScreen extends StatelessWidget {
                 _KpiCard(
                   icon: '⭐',
                   label: 'Rata-rata Order',
-                  value: fmt.format(17745),
+                  value: fmt.format(summary.avgOrder),
                   change: '-1.3%',
                   positive: false,
                 ),
@@ -64,16 +114,19 @@ class DashboardScreen extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Sales chart (placeholder)
+                // Sales chart
                 Expanded(
                   flex: 3,
-                  child: _ChartCard(title: 'Penjualan Mingguan'),
+                  child: _ChartCard(
+                    title: 'Grafik Penjualan $periodLabel',
+                    data: salesData,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 // Top products
                 Expanded(
                   flex: 2,
-                  child: _TopProductsCard(),
+                  child: _TopProductsCard(products: topProducts, periodLabel: periodLabel),
                 ),
               ],
             ),
@@ -87,7 +140,7 @@ class DashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _RecentSummary(),
+                  child: _RecentSummary(summary: summary),
                 ),
               ],
             ),
@@ -168,14 +221,13 @@ class _KpiCard extends StatelessWidget {
 
 class _ChartCard extends StatelessWidget {
   final String title;
-  const _ChartCard({required this.title});
-
-  static const _data = [320000.0, 480000.0, 290000.0, 610000.0, 720000.0, 540000.0, 834000.0];
-  static const _days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+  final List<SalesDatum> data;
+  const _ChartCard({required this.title, required this.data});
 
   @override
   Widget build(BuildContext context) {
-    final maxVal = _data.reduce((a, b) => a > b ? a : b);
+    if (data.isEmpty) return const SizedBox();
+    final maxVal = data.map((d) => d.amount).reduce((a, b) => a > b ? a : b);
     final fmt = NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return Container(
@@ -189,16 +241,15 @@ class _ChartCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: AppTextStyles.headlineSm),
-          const SizedBox(height: 4),
-          Text('7 hari terakhir', style: AppTextStyles.labelSm),
           const SizedBox(height: 24),
           SizedBox(
             height: 180,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(_data.length, (i) {
-                final h = (_data[i] / maxVal) * 110;
-                final isToday = i == _data.length - 1;
+              children: List.generate(data.length, (i) {
+                final d = data[i];
+                final h = maxVal == 0 ? 0.0 : (d.amount / maxVal) * 110;
+                final isToday = i == data.length - 1;
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -207,7 +258,7 @@ class _ChartCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (isToday)
-                          Text(fmt.format(_data[i]), style: AppTextStyles.labelXs.copyWith(color: AppColors.primary, fontSize: 9), overflow: TextOverflow.ellipsis),
+                          Text(fmt.format(d.amount), style: AppTextStyles.labelXs.copyWith(color: AppColors.primary, fontSize: 9), overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 2),
                         Container(
                           height: h,
@@ -218,7 +269,7 @@ class _ChartCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _days[i],
+                          d.label,
                           style: AppTextStyles.labelXs.copyWith(
                             color: isToday ? AppColors.primary : AppColors.onSurfaceVariant,
                             fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
@@ -238,15 +289,9 @@ class _ChartCard extends StatelessWidget {
 }
 
 class _TopProductsCard extends StatelessWidget {
-  _TopProductsCard();
-
-  final _products = const [
-    {'name': 'Matcha Latte', 'emoji': '🍵', 'qty': 34, 'pct': 0.85},
-    {'name': 'Flat White', 'emoji': '☕', 'qty': 28, 'pct': 0.70},
-    {'name': 'Iced Matcha', 'emoji': '🧊', 'qty': 22, 'pct': 0.55},
-    {'name': 'Matcha Croissant', 'emoji': '🥐', 'qty': 18, 'pct': 0.45},
-    {'name': 'Cold Brew', 'emoji': '🧋', 'qty': 14, 'pct': 0.35},
-  ];
+  final List<TopProduct> products;
+  final String periodLabel;
+  const _TopProductsCard({required this.products, required this.periodLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -262,13 +307,13 @@ class _TopProductsCard extends StatelessWidget {
         children: [
           Text('Produk Terlaris', style: AppTextStyles.headlineSm),
           const SizedBox(height: 4),
-          Text('Hari ini', style: AppTextStyles.labelSm),
+          Text(periodLabel, style: AppTextStyles.labelSm),
           const SizedBox(height: 20),
-          ...(_products.map((p) => Padding(
+          ...(products.map((p) => Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: Row(
               children: [
-                Text(p['emoji'] as String, style: const TextStyle(fontSize: 20)),
+                Text(p.emoji, style: const TextStyle(fontSize: 20)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -276,16 +321,16 @@ class _TopProductsCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text(p['name'] as String, style: AppTextStyles.bodyMd.copyWith(fontSize: 13)),
+                          Text(p.name, style: AppTextStyles.bodyMd.copyWith(fontSize: 13)),
                           const Spacer(),
-                          Text('${p['qty']} terjual', style: AppTextStyles.labelXs),
+                          Text('${p.qty} terjual', style: AppTextStyles.labelXs),
                         ],
                       ),
                       const SizedBox(height: 5),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(99),
                         child: LinearProgressIndicator(
-                          value: p['pct'] as double,
+                          value: p.pct,
                           backgroundColor: AppColors.surfaceContainerHigh,
                           valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                           minHeight: 5,
@@ -327,7 +372,7 @@ class _PaymentBreakdown extends StatelessWidget {
         children: [
           Text('Metode Pembayaran', style: AppTextStyles.headlineSm),
           const SizedBox(height: 4),
-          Text('Distribusi hari ini', style: AppTextStyles.labelSm),
+          Text('Distribusi rata-rata', style: AppTextStyles.labelSm),
           const SizedBox(height: 20),
           ..._methods.map((m) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -371,7 +416,8 @@ class _PaymentBreakdown extends StatelessWidget {
 }
 
 class _RecentSummary extends StatelessWidget {
-  const _RecentSummary();
+  final ReportSummary summary;
+  const _RecentSummary({required this.summary});
 
   @override
   Widget build(BuildContext context) {
@@ -386,15 +432,12 @@ class _RecentSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Ringkasan Shift', style: AppTextStyles.headlineSm),
-          const SizedBox(height: 4),
-          Text('Shift pagi · 08:00 – sekarang', style: AppTextStyles.labelSm),
-          const SizedBox(height: 20),
-          _SummaryItem(icon: Icons.receipt_long_rounded, label: 'Total Transaksi', value: '47'),
-          _SummaryItem(icon: Icons.shopping_bag_outlined, label: 'Item Terjual', value: '128'),
-          _SummaryItem(icon: Icons.people_outline_rounded, label: 'Pelanggan', value: '41'),
-          _SummaryItem(icon: Icons.discount_outlined, label: 'Diskon Diberikan', value: fmt.format(24500)),
-          _SummaryItem(icon: Icons.attach_money_rounded, label: 'Pendapatan Bersih', value: fmt.format(809500), highlight: true),
+          Text('Ringkasan Total', style: AppTextStyles.headlineSm),
+          const SizedBox(height: 24),
+          _SummaryItem(icon: Icons.receipt_long_rounded, label: 'Total Transaksi', value: '${summary.totalTransactions}'),
+          _SummaryItem(icon: Icons.shopping_bag_outlined, label: 'Item Terjual', value: '${summary.totalItems}'),
+          _SummaryItem(icon: Icons.people_outline_rounded, label: 'Estimasi Pelanggan', value: '${(summary.totalTransactions * 0.9).toInt()}'),
+          _SummaryItem(icon: Icons.attach_money_rounded, label: 'Pendapatan Bersih', value: fmt.format(summary.totalRevenue), highlight: true),
         ],
       ),
     );

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 
-enum NavItem { register, history, dashboard, settings }
+enum NavItem { register, stock, menu, history, dashboard, settings }
 
 class SideNavBar extends StatelessWidget {
   final NavItem activeItem;
@@ -31,12 +31,12 @@ class SideNavBar extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Center(
-              child: Text('T', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              image: DecorationImage(
+                image: AssetImage('assets/images/logotanjosu.jpeg'),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           const SizedBox(height: 32),
@@ -44,6 +44,22 @@ class SideNavBar extends StatelessWidget {
             icon: Icons.point_of_sale_rounded,
             label: 'Kasir',
             item: NavItem.register,
+            activeItem: activeItem,
+            onTap: onItemSelected,
+          ),
+          const SizedBox(height: 8),
+          _NavItemWidget(
+            icon: Icons.inventory_2_rounded,
+            label: 'Stok',
+            item: NavItem.stock,
+            activeItem: activeItem,
+            onTap: onItemSelected,
+          ),
+          const SizedBox(height: 8),
+          _NavItemWidget(
+            icon: Icons.restaurant_menu_rounded,
+            label: 'Menu',
+            item: NavItem.menu,
             activeItem: activeItem,
             onTap: onItemSelected,
           ),

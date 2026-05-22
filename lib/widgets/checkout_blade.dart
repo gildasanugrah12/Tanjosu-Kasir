@@ -6,18 +6,27 @@ import '../core/theme/app_text_styles.dart';
 import '../providers/cart_provider.dart';
 import '../widgets/buttons.dart';
 
-class CheckoutBlade extends StatelessWidget {
+class CheckoutBlade extends StatefulWidget {
   final VoidCallback onCheckout;
+  final TextEditingController customerNameController;
 
-  const CheckoutBlade({super.key, required this.onCheckout});
+  const CheckoutBlade({
+    super.key,
+    required this.onCheckout,
+    required this.customerNameController,
+  });
 
+  @override
+  State<CheckoutBlade> createState() => _CheckoutBladeState();
+}
+
+class _CheckoutBladeState extends State<CheckoutBlade> {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return Container(
-      width: 320,
       decoration: const BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         border: Border(
@@ -50,6 +59,37 @@ class CheckoutBlade extends StatelessWidget {
                     ),
                   ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Customer Name Input
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: TextField(
+              controller: widget.customerNameController,
+              onChanged: (_) => setState(() {}),
+              style: AppTextStyles.bodyMd.copyWith(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Nama Pembeli *',
+                prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: widget.customerNameController.text.trim().isEmpty
+                        ? AppColors.outlineVariant
+                        : AppColors.primary,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                ),
+                filled: true,
+                fillColor: AppColors.surfaceContainerLow,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -134,7 +174,9 @@ class CheckoutBlade extends StatelessWidget {
               child: PrimaryButton(
                 label: 'Bayar Sekarang',
                 icon: Icons.payment_rounded,
-                onPressed: onCheckout,
+                onPressed: widget.customerNameController.text.trim().isEmpty
+                    ? null
+                    : widget.onCheckout,
               ),
             ),
           ] else
@@ -159,7 +201,11 @@ class CheckoutBlade extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true) cart.clearCart();
+    if (confirmed == true) {
+      cart.clearCart();
+      widget.customerNameController.clear();
+      setState(() {});
+    }
   }
 }
 

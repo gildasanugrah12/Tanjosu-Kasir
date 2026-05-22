@@ -5,9 +5,14 @@ import '../models/product.dart';
 import '../widgets/product_card.dart';
 import '../widgets/checkout_blade.dart';
 import '../widgets/side_nav_bar.dart';
+import 'package:provider/provider.dart';
+import '../providers/stock_provider.dart';
+import '../providers/cart_provider.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
 import 'payment_screen.dart';
+import 'stock_screen.dart';
+import 'menu_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -18,33 +23,74 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   NavItem _activeNav = NavItem.register;
+  final _customerNameCtrl = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: [
-          // Left: Sidebar
-          SideNavBar(
-            activeItem: _activeNav,
-            onItemSelected: (item) => setState(() => _activeNav = item),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 900;
+        final showBlade = _activeNav == NavItem.register;
+        
+        Widget checkoutBladeWidget = CheckoutBlade(
+          customerNameController: _customerNameCtrl,
+          onCheckout: () {
+            final name = _customerNameCtrl.text.trim();
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => PaymentScreen(customerName: name)),
+            ).then((_) {
+              _customerNameCtrl.clear();
+              if (!isWide && Navigator.canPop(context)) {
+                Navigator.pop(context); // Close drawer if open
+              }
+            });
+          },
+        );
+
+        return Scaffold(
+          body: Row(
+            children: [
+              // Left: Sidebar
+              SideNavBar(
+                activeItem: _activeNav,
+                onItemSelected: (item) => setState(() => _activeNav = item),
+              ),
+              // Center: Main Content
+              Expanded(
+                child: _buildContent(),
+              ),
+              // Right: Checkout Blade (only on register screen for wide screens)
+              if (isWide && showBlade) 
+                SizedBox(width: 320, child: checkoutBladeWidget),
+            ],
           ),
-          // Center: Main Content
-          Expanded(
-            child: _buildContent(),
-          ),
-          // Right: Checkout Blade (only on register screen)
-          if (_activeNav == NavItem.register)
-            CheckoutBlade(
-              onCheckout: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PaymentScreen()),
-                );
-              },
-            ),
-        ],
-      ),
+          endDrawer: (!isWide && showBlade) ? Drawer(
+            width: 320,
+            child: checkoutBladeWidget,
+          ) : null,
+          floatingActionButton: (!isWide && showBlade) ? Builder(
+            builder: (context) {
+              final cartItems = context.watch<CartProvider>().totalItems;
+              return FloatingActionButton.extended(
+                backgroundColor: AppColors.primary,
+                onPressed: () => Scaffold.of(context).openEndDrawer(),
+                icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
+                label: Text(
+                  '$cartItems Item', 
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                ),
+              );
+            }
+          ) : null,
+        );
+      },
     );
+  }
+
+  @override
+  void dispose() {
+    _customerNameCtrl.dispose();
+    super.dispose();
   }
 
   Widget _buildContent() {
@@ -55,6 +101,10 @@ class _MainShellState extends State<MainShell> {
         return const HistoryScreen();
       case NavItem.dashboard:
         return const DashboardScreen();
+      case NavItem.stock:
+        return const StockScreen();
+      case NavItem.menu:
+        return const MenuScreen();
       case NavItem.settings:
         return const _SettingsPlaceholder();
     }
@@ -69,13 +119,14 @@ class PosMainCanvas extends StatefulWidget {
 }
 
 class _PosMainCanvasState extends State<PosMainCanvas> {
-  String _selectedCategory = 'All';
+  String _selectedCategory = 'ALL';
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  List<Product> get _filteredProducts {
-    return dummyProducts.where((p) {
-      final matchCat = _selectedCategory == 'All' || p.category == _selectedCategory;
+  List<Product> _getFilteredProducts(BuildContext context) {
+    final products = context.watch<StockProvider>().products;
+    return products.where((p) {
+      final matchCat = _selectedCategory == 'ALL' || p.category == _selectedCategory;
       final matchSearch = _searchQuery.isEmpty ||
           p.name.toLowerCase().contains(_searchQuery.toLowerCase());
       return matchCat && matchSearch;
@@ -100,7 +151,7 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
           // Category Tabs
           _buildCategoryTabs(),
           // Product Grid
-          Expanded(child: _buildProductGrid()),
+          Expanded(child: _buildProductGrid(context)),
         ],
       ),
     );
@@ -116,41 +167,49 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
       ),
       child: Row(
         children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Tanjosu POS', style: AppTextStyles.headlineSm),
-              Text(
-                _getGreeting(),
-                style: AppTextStyles.labelSm,
-              ),
-            ],
+          Flexible(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tanjosu Cianjur', style: AppTextStyles.headlineSm, maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  _getGreeting(),
+                  style: AppTextStyles.labelSm,
+                  maxLines: 1, 
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 16),
           // Search
-          SizedBox(
-            width: 280,
-            height: 44,
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() => _searchQuery = v),
-              style: AppTextStyles.bodyMd.copyWith(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Cari menu...',
-                prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.outlineVariant),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: SizedBox(
+                height: 44,
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                  style: AppTextStyles.bodyMd.copyWith(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Cari menu...',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.outlineVariant),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surfaceContainerLow,
+                  ),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                ),
-                filled: true,
-                fillColor: AppColors.surfaceContainerLow,
               ),
             ),
           ),
@@ -174,15 +233,12 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
 
   Widget _buildCategoryTabs() {
     return Container(
-      height: 56,
       color: AppColors.surfaceContainerLowest,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-        itemCount: productCategories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final cat = productCategories[index];
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: productCategories.map((cat) {
           final isActive = cat == _selectedCategory;
           return GestureDetector(
             onTap: () => setState(() => _selectedCategory = cat),
@@ -202,13 +258,13 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
               ),
             ),
           );
-        },
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildProductGrid() {
-    final products = _filteredProducts;
+  Widget _buildProductGrid(BuildContext context) {
+    final products = _getFilteredProducts(context);
     if (products.isEmpty) {
       return Center(
         child: Column(

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/product.dart';
 import '../models/cart_item.dart';
-
+import 'stock_provider.dart';
 enum OrderType { dineIn, takeaway, delivery }
 
 class CartProvider extends ChangeNotifier {
@@ -66,6 +66,13 @@ class CartProvider extends ChangeNotifier {
     _tableNumber = 'T-01';
     _orderType = OrderType.dineIn;
     notifyListeners();
+  }
+
+  void checkout(StockProvider stockProvider) {
+    for (var item in _items) {
+      stockProvider.adjustStock(item.product.id, -item.quantity);
+    }
+    clearCart();
   }
 
   void setOrderType(OrderType type) {
