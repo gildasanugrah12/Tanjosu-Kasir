@@ -13,6 +13,7 @@ import 'history_screen.dart';
 import 'payment_screen.dart';
 import 'stock_screen.dart';
 import 'menu_screen.dart';
+import 'kitchen_screen.dart';
 
 class MainShell extends StatefulWidget {
   final String role; // Menerima data role ('owner' / 'kasir') dari login_screen
@@ -125,6 +126,8 @@ class _MainShellState extends State<MainShell> {
         return const StockScreen();
       case NavItem.menu:
         return const MenuScreen();
+      case NavItem.dapur:
+        return const KitchenScreen();
       case NavItem.settings:
         return const _SettingsPlaceholder();
     }
@@ -267,6 +270,17 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
                   decoration: InputDecoration(
                     hintText: 'Cari menu...',
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() {
+                                _searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     enabledBorder: OutlineInputBorder(
