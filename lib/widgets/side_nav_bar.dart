@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
+import '../providers/transaction_provider.dart';
 
-enum NavItem { register, stock, menu, history, dashboard, settings }
+enum NavItem { register, stock, menu, history, dapur, dashboard, settings }
 
 class SideNavBar extends StatelessWidget {
   final NavItem activeItem;
@@ -16,6 +18,8 @@ class SideNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeOrdersCount = context.watch<TransactionProvider>().activeOrdersCount;
+
     return Container(
       width: 88,
       decoration: const BoxDecoration(
@@ -73,6 +77,15 @@ class SideNavBar extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _NavItemWidget(
+            icon: Icons.soup_kitchen_rounded,
+            label: 'Dapur',
+            item: NavItem.dapur,
+            activeItem: activeItem,
+            onTap: onItemSelected,
+            badgeCount: activeOrdersCount,
+          ),
+          const SizedBox(height: 8),
+          _NavItemWidget(
             icon: Icons.bar_chart_rounded,
             label: 'Laporan',
             item: NavItem.dashboard,
@@ -100,6 +113,7 @@ class _NavItemWidget extends StatelessWidget {
   final NavItem item;
   final NavItem activeItem;
   final ValueChanged<NavItem> onTap;
+  final int badgeCount;
 
   const _NavItemWidget({
     required this.icon,
@@ -107,6 +121,7 @@ class _NavItemWidget extends StatelessWidget {
     required this.item,
     required this.activeItem,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -145,10 +160,43 @@ class _NavItemWidget extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    icon,
-                    color: isActive ? AppColors.primary : AppColors.onSurfaceVariant,
-                    size: 24,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        icon,
+                        color: isActive ? AppColors.primary : AppColors.onSurfaceVariant,
+                        size: 24,
+                      ),
+                      if (badgeCount > 0)
+                        Positioned(
+                          right: -8,
+                          top: -8,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: AppColors.statusPending,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$badgeCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.1,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

@@ -14,6 +14,7 @@ class Transaction {
   final double change;
   final String paymentMethod;
   final String orderType;
+  final String status;
 
   const Transaction({
     required this.id,
@@ -29,7 +30,29 @@ class Transaction {
     required this.change,
     required this.paymentMethod,
     required this.orderType,
+    this.status = 'Lagi Dibuat',
   });
+
+  Transaction copyWith({
+    String? status,
+  }) {
+    return Transaction(
+      id: id,
+      customerName: customerName,
+      dateTime: dateTime,
+      items: items,
+      subtotal: subtotal,
+      discountPercent: discountPercent,
+      discountAmount: discountAmount,
+      taxAmount: taxAmount,
+      grandTotal: grandTotal,
+      amountPaid: amountPaid,
+      change: change,
+      paymentMethod: paymentMethod,
+      orderType: orderType,
+      status: status ?? this.status,
+    );
+  }
 }
 
 class TransactionItem {

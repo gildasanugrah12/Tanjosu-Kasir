@@ -1,36 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
-
-class _Transaction {
-  final String id;
-  final String time;
-  final int items;
-  final double total;
-  final String method;
-  final String status;
-
-  const _Transaction({
-    required this.id,
-    required this.time,
-    required this.items,
-    required this.total,
-    required this.method,
-    required this.status,
-  });
-}
-
-final _dummyTransactions = [
-  _Transaction(id: '#TJN-001', time: '09:14', items: 3, total: 115000, method: 'QRIS', status: 'Selesai'),
-  _Transaction(id: '#TJN-002', time: '09:42', items: 1, total: 38000, method: 'Tunai', status: 'Selesai'),
-  _Transaction(id: '#TJN-003', time: '10:05', items: 2, total: 86000, method: 'Kartu', status: 'Selesai'),
-  _Transaction(id: '#TJN-004', time: '10:23', items: 4, total: 167000, method: 'QRIS', status: 'Selesai'),
-  _Transaction(id: '#TJN-005', time: '11:00', items: 2, total: 73000, method: 'Transfer', status: 'Selesai'),
-  _Transaction(id: '#TJN-006', time: '11:38', items: 1, total: 35000, method: 'Tunai', status: 'Selesai'),
-  _Transaction(id: '#TJN-007', time: '12:10', items: 5, total: 224000, method: 'QRIS', status: 'Selesai'),
-  _Transaction(id: '#TJN-008', time: '13:22', items: 2, total: 96000, method: 'Kartu', status: 'Selesai'),
-];
+import '../models/transaction.dart';
+import '../providers/transaction_provider.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -43,16 +17,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _filter = 'Semua';
   final _methods = ['Semua', 'QRIS', 'Tunai', 'Kartu', 'Transfer'];
 
-  List<_Transaction> get _filtered {
-    if (_filter == 'Semua') return _dummyTransactions;
-    return _dummyTransactions.where((t) => t.method == _filter).toList();
+  List<Transaction> _getFilteredTransactions(List<Transaction> transactions) {
+    if (_filter == 'Semua') return transactions;
+    return transactions.where((t) => t.paymentMethod == _filter).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final transactions = context.watch<TransactionProvider>().transactions;
+    final filteredTx = _getFilteredTransactions(transactions);
+
     final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-    final totalToday = _filtered.fold(0.0, (s, t) => s + t.total);
-    final txList = _filtered;
+    final totalToday = filteredTx.fold(0.0, (s, t) => s + t.grandTotal);
+    final txList = filteredTx;
 
     return Container(
       color: AppColors.background,
@@ -138,50 +115,77 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const Divider(height: 1),
           // Table rows
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              itemCount: txList.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final tx = txList[index];
-                return Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Row(
-                    children: [
-                      Expanded(flex: 2, child: Text(tx.id, style: AppTextStyles.bodyMd.copyWith(fontSize: 14, fontWeight: FontWeight.w700))),
-                      Expanded(flex: 1, child: Text(tx.time, style: AppTextStyles.bodySm)),
-                      Expanded(flex: 1, child: Text('${tx.items} item', style: AppTextStyles.bodySm)),
-                      Expanded(
-                        flex: 2,
+            child: txList.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('🔍', style: TextStyle(fontSize: 48)),
+                        const SizedBox(height: 12),
+                        Text('Tidak ada transaksi ditemukan', style: AppTextStyles.bodyMd),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    itemCount: txList.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final tx = txList[index];
+                      final timeStr = DateFormat('HH:mm').format(tx.dateTime);
+                      final totalItems = tx.items.fold<int>(0, (sum, item) => sum + item.quantity);
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Row(
                           children: [
-                            Icon(_methodIcon(tx.method), size: 16, color: AppColors.onSurfaceVariant),
-                            const SizedBox(width: 6),
-                            Text(tx.method, style: AppTextStyles.bodySm),
+                            Expanded(flex: 2, child: Text(tx.id, style: AppTextStyles.bodyMd.copyWith(fontSize: 14, fontWeight: FontWeight.w700))),
+                            Expanded(flex: 1, child: Text(timeStr, style: AppTextStyles.bodySm)),
+                            Expanded(flex: 1, child: Text('$totalItems item', style: AppTextStyles.bodySm)),
+                            Expanded(
+                              flex: 2,
+                              child: Row(
+                                children: [
+                                  Icon(_methodIcon(tx.paymentMethod), size: 16, color: AppColors.onSurfaceVariant),
+                                  const SizedBox(width: 6),
+                                  Text(tx.paymentMethod, style: AppTextStyles.bodySm),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(fmt.format(tx.grandTotal), style: AppTextStyles.bodyMd.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: tx.status == 'Selesai'
+                                        ? AppColors.primaryFixed.withOpacity(0.4)
+                                        : AppColors.statusPending.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: Text(
+                                    tx.status,
+                                    style: AppTextStyles.labelSm.copyWith(
+                                      color: tx.status == 'Selesai'
+                                          ? AppColors.primary
+                                          : AppColors.statusPending,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(fmt.format(tx.total), style: AppTextStyles.bodyMd.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                          width: 80,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryFixed.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(tx.status, style: AppTextStyles.labelSm.copyWith(color: AppColors.primary), textAlign: TextAlign.center),
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
