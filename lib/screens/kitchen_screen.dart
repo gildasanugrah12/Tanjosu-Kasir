@@ -402,6 +402,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
                         },
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: const [
                             Icon(Icons.check_circle_rounded, size: 18),
                             SizedBox(width: 8),

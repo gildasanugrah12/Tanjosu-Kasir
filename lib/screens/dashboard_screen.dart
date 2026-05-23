@@ -13,13 +13,52 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   ReportPeriod _selectedPeriod = ReportPeriod.harian;
+  String _selectedDay = 'Minggu';
 
   @override
   Widget build(BuildContext context) {
-    final summary = getSummary(_selectedPeriod);
-    final salesData = getSalesData(_selectedPeriod);
-    final topProducts = getTopProducts(_selectedPeriod);
-    final periodLabel = getPeriodLabel(_selectedPeriod);
+    ReportSummary summary;
+    List<SalesDatum> salesData;
+    List<TopProduct> topProducts;
+    String periodLabel;
+
+    if (_selectedPeriod == ReportPeriod.harian) {
+      salesData = harianData;
+      if (_selectedDay == 'Senin') {
+        summary = seninSummary;
+        topProducts = topProductsSenin;
+        periodLabel = 'Senin';
+      } else if (_selectedDay == 'Selasa') {
+        summary = selasaSummary;
+        topProducts = topProductsSelasa;
+        periodLabel = 'Selasa';
+      } else if (_selectedDay == 'Rabu') {
+        summary = rabuSummary;
+        topProducts = topProductsRabu;
+        periodLabel = 'Rabu';
+      } else if (_selectedDay == 'Kamis') {
+        summary = kamisSummary;
+        topProducts = topProductsKamis;
+        periodLabel = 'Kamis';
+      } else if (_selectedDay == 'Jumat') {
+        summary = jumatSummary;
+        topProducts = topProductsJumat;
+        periodLabel = 'Jumat';
+      } else if (_selectedDay == 'Sabtu') {
+        summary = sabtuSummary;
+        topProducts = topProductsSabtu;
+        periodLabel = 'Sabtu';
+      } else {
+        summary = mingguSummary;
+        topProducts = topProductsMinggu;
+        periodLabel = 'Minggu';
+      }
+    } else {
+      summary = getSummary(_selectedPeriod);
+      salesData = getSalesData(_selectedPeriod);
+      topProducts = getTopProducts(_selectedPeriod);
+      periodLabel = getPeriodLabel(_selectedPeriod);
+    }
     final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return Container(
@@ -120,6 +159,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: _ChartCard(
                     title: 'Grafik Penjualan $periodLabel',
                     data: salesData,
+                    selectedDay: _selectedPeriod == ReportPeriod.harian ? _selectedDay : null,
+                    onDayChanged: (day) {
+                      setState(() {
+                        _selectedDay = day;
+                      });
+                    },
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -219,16 +264,40 @@ class _KpiCard extends StatelessWidget {
   }
 }
 
-class _ChartCard extends StatelessWidget {
+class _ChartCard extends StatefulWidget {
   final String title;
   final List<SalesDatum> data;
-  const _ChartCard({required this.title, required this.data});
+  final String? selectedDay;
+  final ValueChanged<String>? onDayChanged;
+
+  const _ChartCard({
+    required this.title,
+    required this.data,
+    this.selectedDay,
+    this.onDayChanged,
+  });
+
+  @override
+  State<_ChartCard> createState() => _ChartCardState();
+}
+
+class _ChartCardState extends State<_ChartCard> {
+  int? _selectedBarIndex;
+
+  @override
+  void didUpdateWidget(covariant _ChartCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) {
+      _selectedBarIndex = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (data.isEmpty) return const SizedBox();
-    final maxVal = data.map((d) => d.amount).reduce((a, b) => a > b ? a : b);
+    if (widget.data.isEmpty) return const SizedBox();
+    final maxVal = widget.data.map((d) => d.amount).reduce((a, b) => a > b ? a : b);
     final fmt = NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final fullFmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -240,47 +309,204 @@ class _ChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppTextStyles.headlineSm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title, style: AppTextStyles.headlineSm),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.selectedDay != null
+                          ? 'Klik batang hari untuk melihat detail analitik hari tersebut'
+                          : 'Distribusi penjualan per periode',
+                      style: AppTextStyles.labelXs.copyWith(color: AppColors.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
           SizedBox(
             height: 180,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(data.length, (i) {
-                final d = data[i];
+              children: List.generate(widget.data.length, (i) {
+                final d = widget.data[i];
                 final h = maxVal == 0 ? 0.0 : (d.amount / maxVal) * 110;
-                final isToday = i == data.length - 1;
+                
+                final isSelected = widget.selectedDay != null
+                    ? widget.selectedDay == d.label
+                    : _selectedBarIndex == i;
+
+                final isToday = widget.selectedDay != null
+                    ? d.label == 'Minggu'
+                    : i == widget.data.length - 1;
+                
+                final barColor = isSelected
+                    ? AppColors.primary
+                    : (widget.selectedDay != null || _selectedBarIndex != null)
+                        ? AppColors.primaryFixed.withOpacity(0.3)
+                        : isToday
+                            ? AppColors.primary
+                            : AppColors.primaryFixed.withOpacity(0.6);
+
                 return Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isToday)
-                          Text(fmt.format(d.amount), style: AppTextStyles.labelXs.copyWith(color: AppColors.primary, fontSize: 9), overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 2),
-                        Container(
-                          height: h,
-                          decoration: BoxDecoration(
-                            color: isToday ? AppColors.primary : AppColors.primaryFixed.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: GestureDetector(
+                      onTap: () {
+                        if (widget.selectedDay != null && widget.onDayChanged != null) {
+                          widget.onDayChanged!(d.label);
+                        } else {
+                          setState(() {
+                            if (_selectedBarIndex == i) {
+                              _selectedBarIndex = null;
+                            } else {
+                              _selectedBarIndex = i;
+                            }
+                          });
+                        }
+                      },
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected || (isToday && widget.selectedDay == null && _selectedBarIndex == null))
+                              Text(
+                                fmt.format(d.amount),
+                                style: AppTextStyles.labelXs.copyWith(
+                                  color: AppColors.primary,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            const SizedBox(height: 2),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              height: h,
+                              decoration: BoxDecoration(
+                                color: barColor,
+                                borderRadius: BorderRadius.circular(6),
+                                border: isSelected
+                                    ? Border.all(color: AppColors.primaryFixed, width: 2)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              d.label,
+                              style: AppTextStyles.labelXs.copyWith(
+                                color: isSelected || (isToday && widget.selectedDay == null && _selectedBarIndex == null)
+                                    ? AppColors.primary
+                                    : AppColors.onSurfaceVariant,
+                                fontWeight: isSelected || (isToday && widget.selectedDay == null && _selectedBarIndex == null)
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          d.label,
-                          style: AppTextStyles.labelXs.copyWith(
-                            color: isToday ? AppColors.primary : AppColors.onSurfaceVariant,
-                            fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 );
               }),
             ),
+          ),
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 12),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: (widget.selectedDay != null || _selectedBarIndex != null)
+                ? () {
+                    final activeIdx = widget.selectedDay != null
+                        ? widget.data.indexWhere((d) => d.label == widget.selectedDay)
+                        : _selectedBarIndex;
+                    if (activeIdx == null || activeIdx == -1) return const SizedBox();
+                    final activeData = widget.data[activeIdx];
+                    
+                    return Container(
+                      key: ValueKey<String>(activeData.label),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.insights_rounded, color: AppColors.primary, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.selectedDay != null
+                                      ? 'Detail Penjualan Hari ${activeData.label}'
+                                      : 'Detail Penjualan: ${activeData.label}',
+                                  style: AppTextStyles.bodySm.copyWith(fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Omzet: ',
+                                      style: AppTextStyles.labelXs.copyWith(color: AppColors.onSurfaceVariant),
+                                    ),
+                                    Text(
+                                      fullFmt.format(activeData.amount),
+                                      style: AppTextStyles.labelXs.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Transaksi: ',
+                                      style: AppTextStyles.labelXs.copyWith(color: AppColors.onSurfaceVariant),
+                                    ),
+                                    Text(
+                                      '${activeData.transactions} Transaksi',
+                                      style: AppTextStyles.labelXs.copyWith(fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }()
+                : Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('💡 ', style: TextStyle(fontSize: 14)),
+                        Text(
+                          'Klik batang grafik hari apa saja untuk melihat rincian omzet & detail data penjualan.',
+                          style: AppTextStyles.labelXs.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),

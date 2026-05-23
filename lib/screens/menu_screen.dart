@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
-import '../models/product.dart'; // Tetap gunakan model Product kamu
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -56,7 +55,10 @@ class _MenuScreenState extends State<MenuScreen> {
                     DropdownButtonFormField<String>(
                       value: category,
                       decoration: const InputDecoration(labelText: 'Kategori'),
-                      items: _uiCategories.where((c) => c != 'ALL').map((c) {
+                      items: [
+                        ..._uiCategories.where((c) => c != 'ALL'),
+                        if (!_uiCategories.contains(category)) category,
+                      ].map((c) {
                         return DropdownMenuItem(value: c, child: Text(c));
                       }).toList(),
                       onChanged: (v) => setStateModal(() => category = v!),
@@ -150,9 +152,11 @@ class _MenuScreenState extends State<MenuScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      minimumSize: Size.zero, // Menimpa lebar default double.infinity dari global theme
                     ),
                     onPressed: () => _showProductDialog(),
                     child: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.add, color: Colors.white, size: 20),
                         SizedBox(width: 8),
@@ -199,6 +203,18 @@ class _MenuScreenState extends State<MenuScreen> {
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _supabase.from('product').stream(primaryKey: ['id']).order('name'),
                 builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'Error: ${snapshot.error}',
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
@@ -208,9 +224,28 @@ class _MenuScreenState extends State<MenuScreen> {
 
                   // Memfilter data berdasarkan kategori tab yang dipilih
                   final allProducts = snapshot.data!;
-                  final filteredProducts = _selectedCategory == 'ALL'
-                      ? allProducts
-                      : allProducts.where((p) => p['category'].toString().toLowerCase() == _selectedCategory.toLowerCase()).toList();
+                  final filteredProducts = allProducts.where((p) {
+                    final cat = (p['category'] ?? 'KHS').toString().toLowerCase();
+                    if (_selectedCategory == 'ALL') {
+                      return true;
+                    } else if (_selectedCategory == 'KHS') {
+                      return cat.startsWith('khs');
+                    } else if (_selectedCategory == 'Drinks') {
+                      return cat.startsWith('drinks');
+                    } else if (_selectedCategory == 'Vanila X Red Velvet') {
+                      return cat.contains('vanila') || cat.contains('velvet');
+                    } else if (_selectedCategory == 'Traditional Series') {
+                      return cat.contains('tradisional') || cat.contains('traditional');
+                    } else if (_selectedCategory == 'Mojito Series') {
+                      return cat.contains('mojito');
+                    } else if (_selectedCategory == 'Sticky Rice') {
+                      return cat.contains('sticky') || cat.contains('rice');
+                    } else if (_selectedCategory == 'Tea Series') {
+                      return cat.contains('tea');
+                    } else {
+                      return cat.contains(_selectedCategory.toLowerCase());
+                    }
+                  }).toList();
 
                   if (filteredProducts.isEmpty) {
                     return const Center(child: Text('Menu pada kategori ini kosong.'));

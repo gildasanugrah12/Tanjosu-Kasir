@@ -47,30 +47,20 @@ class TopProduct {
 // ── Dummy chart data ──────────────────────────────────────────────
 
 const harianData = [
-  SalesDatum(label: '08:00', amount: 45000, transactions: 1),
-  SalesDatum(label: '09:00', amount: 115000, transactions: 3),
-  SalesDatum(label: '10:00', amount: 178000, transactions: 5),
-  SalesDatum(label: '11:00', amount: 220000, transactions: 6),
-  SalesDatum(label: '12:00', amount: 312000, transactions: 9),
-  SalesDatum(label: '13:00', amount: 267000, transactions: 7),
-  SalesDatum(label: '14:00', amount: 198000, transactions: 5),
-  SalesDatum(label: '15:00', amount: 145000, transactions: 4),
-  SalesDatum(label: '16:00', amount: 234000, transactions: 6),
-  SalesDatum(label: '17:00', amount: 289000, transactions: 8),
-  SalesDatum(label: '18:00', amount: 356000, transactions: 10),
-  SalesDatum(label: '19:00', amount: 410000, transactions: 11),
-  SalesDatum(label: '20:00', amount: 298000, transactions: 8),
-  SalesDatum(label: '21:00', amount: 167000, transactions: 4),
+  SalesDatum(label: 'Senin', amount: 720000, transactions: 28),
+  SalesDatum(label: 'Selasa', amount: 610000, transactions: 22),
+  SalesDatum(label: 'Rabu', amount: 834000, transactions: 31),
+  SalesDatum(label: 'Kamis', amount: 920000, transactions: 35),
+  SalesDatum(label: 'Jumat', amount: 1100000, transactions: 42),
+  SalesDatum(label: 'Sabtu', amount: 1380000, transactions: 52),
+  SalesDatum(label: 'Minggu', amount: 1250000, transactions: 48), // Hari Ini
 ];
 
 const mingguanData = [
-  SalesDatum(label: 'Sen', amount: 720000, transactions: 28),
-  SalesDatum(label: 'Sel', amount: 610000, transactions: 22),
-  SalesDatum(label: 'Rab', amount: 834000, transactions: 31),
-  SalesDatum(label: 'Kam', amount: 920000, transactions: 35),
-  SalesDatum(label: 'Jum', amount: 1100000, transactions: 42),
-  SalesDatum(label: 'Sab', amount: 1380000, transactions: 52),
-  SalesDatum(label: 'Min', amount: 1250000, transactions: 48),
+  SalesDatum(label: 'Mg 1', amount: 5600000, transactions: 215),
+  SalesDatum(label: 'Mg 2', amount: 6814000, transactions: 258),
+  SalesDatum(label: 'Mg 3', amount: 6100000, transactions: 232),
+  SalesDatum(label: 'Mg 4', amount: 7200000, transactions: 275),
 ];
 
 const bulananData = [
@@ -95,24 +85,80 @@ const tahunanData = [
   SalesDatum(label: 'Des', amount: 34100000, transactions: 1248),
 ];
 
-// ── Summary per periode ───────────────────────────────────────────
+// ── Summary per hari (Senin - Minggu) ──────────────────────────────
 
-const harianSummary = ReportSummary(
-  totalRevenue: 3234000,
-  totalTransactions: 87,
-  totalItems: 234,
-  avgOrder: 37172,
-  revenueChange: 12.4,
-  transactionChange: 8.2,
+const seninSummary = ReportSummary(
+  totalRevenue: 720000,
+  totalTransactions: 28,
+  totalItems: 84,
+  avgOrder: 25714,
+  revenueChange: -5.2,
+  transactionChange: -3.1,
 );
 
+const selasaSummary = ReportSummary(
+  totalRevenue: 610000,
+  totalTransactions: 22,
+  totalItems: 66,
+  avgOrder: 27727,
+  revenueChange: -15.2,
+  transactionChange: -21.4,
+);
+
+const rabuSummary = ReportSummary(
+  totalRevenue: 834000,
+  totalTransactions: 31,
+  totalItems: 93,
+  avgOrder: 26903,
+  revenueChange: 36.7,
+  transactionChange: 40.9,
+);
+
+const kamisSummary = ReportSummary(
+  totalRevenue: 920000,
+  totalTransactions: 35,
+  totalItems: 105,
+  avgOrder: 26285,
+  revenueChange: 10.3,
+  transactionChange: 12.9,
+);
+
+const jumatSummary = ReportSummary(
+  totalRevenue: 1100000,
+  totalTransactions: 42,
+  totalItems: 126,
+  avgOrder: 26190,
+  revenueChange: 19.5,
+  transactionChange: 20.0,
+);
+
+const sabtuSummary = ReportSummary(
+  totalRevenue: 1380000,
+  totalTransactions: 52,
+  totalItems: 156,
+  avgOrder: 26538,
+  revenueChange: 25.4,
+  transactionChange: 23.8,
+);
+
+const mingguSummary = ReportSummary(
+  totalRevenue: 1250000,
+  totalTransactions: 48,
+  totalItems: 144,
+  avgOrder: 26041,
+  revenueChange: -9.4,
+  transactionChange: -7.6,
+);
+
+// ── Summary per periode lainnya ───────────────────────────────────
+
 const mingguanSummary = ReportSummary(
-  totalRevenue: 6814000,
-  totalTransactions: 258,
-  totalItems: 712,
-  avgOrder: 26411,
-  revenueChange: 9.7,
-  transactionChange: 5.3,
+  totalRevenue: 25714000,
+  totalTransactions: 980,
+  totalItems: 2840,
+  avgOrder: 26238,
+  revenueChange: 11.2,
+  transactionChange: 8.7,
 );
 
 const bulananSummary = ReportSummary(
@@ -133,15 +179,65 @@ const tahunanSummary = ReportSummary(
   transactionChange: 18.9,
 );
 
-// ── Top products ──────────────────────────────────────────────────
+// ── Top products per hari (Senin - Minggu) ─────────────────────────
 
-const topProductsHarian = [
-  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 34, pct: 0.85),
-  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 28, pct: 0.70),
-  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 22, pct: 0.55),
-  TopProduct(name: 'KHS Milo Coco Krunch', emoji: '🥣', qty: 18, pct: 0.45),
-  TopProduct(name: 'KHS Strawberry', emoji: '🍓', qty: 14, pct: 0.35),
+const topProductsSenin = [
+  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 12, pct: 0.75),
+  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 9, pct: 0.56),
+  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 7, pct: 0.43),
+  TopProduct(name: 'KHS Milo Coco Krunch', emoji: '🥣', qty: 5, pct: 0.31),
+  TopProduct(name: 'KHS Strawberry', emoji: '🍓', qty: 4, pct: 0.25),
 ];
+
+const topProductsSelasa = [
+  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 10, pct: 0.71),
+  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 8, pct: 0.57),
+  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 6, pct: 0.43),
+  TopProduct(name: 'KHS Strawberry', emoji: '🍓', qty: 4, pct: 0.28),
+  TopProduct(name: 'KHS Alpukat', emoji: '🥑', qty: 3, pct: 0.21),
+];
+
+const topProductsRabu = [
+  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 15, pct: 0.78),
+  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 12, pct: 0.63),
+  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 10, pct: 0.52),
+  TopProduct(name: 'KHS Milo Coco Krunch', emoji: '🥣', qty: 8, pct: 0.42),
+  TopProduct(name: 'KHS Durian Keju', emoji: '🧀', qty: 5, pct: 0.26),
+];
+
+const topProductsKamis = [
+  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 18, pct: 0.81),
+  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 14, pct: 0.63),
+  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 11, pct: 0.50),
+  TopProduct(name: 'KHS Milo Coco Krunch', emoji: '🥣', qty: 9, pct: 0.40),
+  TopProduct(name: 'KHS Strawberry', emoji: '🍓', qty: 7, pct: 0.31),
+];
+
+const topProductsJumat = [
+  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 22, pct: 0.84),
+  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 18, pct: 0.69),
+  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 14, pct: 0.53),
+  TopProduct(name: 'KHS Milo Coco Krunch', emoji: '🥣', qty: 11, pct: 0.42),
+  TopProduct(name: 'KHS Alpukat', emoji: '🥑', qty: 9, pct: 0.34),
+];
+
+const topProductsSabtu = [
+  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 28, pct: 0.87),
+  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 22, pct: 0.68),
+  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 18, pct: 0.56),
+  TopProduct(name: 'KHS Milo Coco Krunch', emoji: '🥣', qty: 14, pct: 0.43),
+  TopProduct(name: 'KHS Strawberry', emoji: '🍓', qty: 10, pct: 0.31),
+];
+
+const topProductsMinggu = [
+  TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 25, pct: 0.86),
+  TopProduct(name: 'KHS Coklat Crunchy', emoji: '🧇', qty: 20, pct: 0.68),
+  TopProduct(name: 'KHS Green Tea', emoji: '🍵', qty: 16, pct: 0.55),
+  TopProduct(name: 'KHS Milo Coco Krunch', emoji: '🥣', qty: 12, pct: 0.41),
+  TopProduct(name: 'KHS Strawberry', emoji: '🍓', qty: 8, pct: 0.27),
+];
+
+// ── Top products per periode lainnya ──────────────────────────────
 
 const topProductsMingguan = [
   TopProduct(name: 'KHS Coklat Keju', emoji: '🧀', qty: 198, pct: 0.90),
@@ -180,7 +276,7 @@ List<SalesDatum> getSalesData(ReportPeriod period) {
 
 ReportSummary getSummary(ReportPeriod period) {
   switch (period) {
-    case ReportPeriod.harian: return harianSummary;
+    case ReportPeriod.harian: return mingguSummary; // default ke Minggu (Hari Ini)
     case ReportPeriod.mingguan: return mingguanSummary;
     case ReportPeriod.bulanan: return bulananSummary;
     case ReportPeriod.tahunan: return tahunanSummary;
@@ -189,7 +285,7 @@ ReportSummary getSummary(ReportPeriod period) {
 
 List<TopProduct> getTopProducts(ReportPeriod period) {
   switch (period) {
-    case ReportPeriod.harian: return topProductsHarian;
+    case ReportPeriod.harian: return topProductsMinggu; // default ke Minggu
     case ReportPeriod.mingguan: return topProductsMingguan;
     case ReportPeriod.bulanan: return topProductsBulanan;
     case ReportPeriod.tahunan: return topProductsTahunan;
@@ -198,9 +294,9 @@ List<TopProduct> getTopProducts(ReportPeriod period) {
 
 String getPeriodLabel(ReportPeriod period) {
   switch (period) {
-    case ReportPeriod.harian: return 'Hari Ini';
-    case ReportPeriod.mingguan: return '7 Hari Terakhir';
-    case ReportPeriod.bulanan: return 'Bulan Ini';
+    case ReportPeriod.harian: return 'Minggu';
+    case ReportPeriod.mingguan: return 'Bulan Ini';
+    case ReportPeriod.bulanan: return 'Kuartal Ini';
     case ReportPeriod.tahunan: return 'Tahun Ini';
   }
 }

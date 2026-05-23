@@ -28,80 +28,93 @@ class SideNavBar extends StatelessWidget {
           right: BorderSide(color: AppColors.outlineVariant, width: 1),
         ),
       ),
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          // Logo
-          Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: AssetImage('assets/images/logotanjosu.jpeg'),
-                fit: BoxFit.cover,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
+                    // Logo
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(
+                          image: AssetImage('assets/images/logotanjosu.jpeg'),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    _NavItemWidget(
+                      icon: Icons.point_of_sale_rounded,
+                      label: 'Kasir',
+                      item: NavItem.register,
+                      activeItem: activeItem,
+                      onTap: onItemSelected,
+                    ),
+                    const SizedBox(height: 8),
+                    _NavItemWidget(
+                      icon: Icons.inventory_2_rounded,
+                      label: 'Stok',
+                      item: NavItem.stock,
+                      activeItem: activeItem,
+                      onTap: onItemSelected,
+                    ),
+                    const SizedBox(height: 8),
+                    _NavItemWidget(
+                      icon: Icons.restaurant_menu_rounded,
+                      label: 'Menu',
+                      item: NavItem.menu,
+                      activeItem: activeItem,
+                      onTap: onItemSelected,
+                    ),
+                    const SizedBox(height: 8),
+                    _NavItemWidget(
+                      icon: Icons.receipt_long_rounded,
+                      label: 'Riwayat',
+                      item: NavItem.history,
+                      activeItem: activeItem,
+                      onTap: onItemSelected,
+                    ),
+                    const SizedBox(height: 8),
+                    _NavItemWidget(
+                      icon: Icons.soup_kitchen_rounded,
+                      label: 'Dapur',
+                      item: NavItem.dapur,
+                      activeItem: activeItem,
+                      onTap: onItemSelected,
+                      badgeCount: activeOrdersCount,
+                    ),
+                    const SizedBox(height: 8),
+                    _NavItemWidget(
+                      icon: Icons.bar_chart_rounded,
+                      label: 'Laporan',
+                      item: NavItem.dashboard,
+                      activeItem: activeItem,
+                      onTap: onItemSelected,
+                    ),
+                    const Spacer(),
+                    _NavItemWidget(
+                      icon: Icons.settings_rounded,
+                      label: 'Setelan',
+                      item: NavItem.settings,
+                      activeItem: activeItem,
+                      onTap: onItemSelected,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-          _NavItemWidget(
-            icon: Icons.point_of_sale_rounded,
-            label: 'Kasir',
-            item: NavItem.register,
-            activeItem: activeItem,
-            onTap: onItemSelected,
-          ),
-          const SizedBox(height: 8),
-          _NavItemWidget(
-            icon: Icons.inventory_2_rounded,
-            label: 'Stok',
-            item: NavItem.stock,
-            activeItem: activeItem,
-            onTap: onItemSelected,
-          ),
-          const SizedBox(height: 8),
-          _NavItemWidget(
-            icon: Icons.restaurant_menu_rounded,
-            label: 'Menu',
-            item: NavItem.menu,
-            activeItem: activeItem,
-            onTap: onItemSelected,
-          ),
-          const SizedBox(height: 8),
-          _NavItemWidget(
-            icon: Icons.receipt_long_rounded,
-            label: 'Riwayat',
-            item: NavItem.history,
-            activeItem: activeItem,
-            onTap: onItemSelected,
-          ),
-          const SizedBox(height: 8),
-          _NavItemWidget(
-            icon: Icons.soup_kitchen_rounded,
-            label: 'Dapur',
-            item: NavItem.dapur,
-            activeItem: activeItem,
-            onTap: onItemSelected,
-            badgeCount: activeOrdersCount,
-          ),
-          const SizedBox(height: 8),
-          _NavItemWidget(
-            icon: Icons.bar_chart_rounded,
-            label: 'Laporan',
-            item: NavItem.dashboard,
-            activeItem: activeItem,
-            onTap: onItemSelected,
-          ),
-          const Spacer(),
-          _NavItemWidget(
-            icon: Icons.settings_rounded,
-            label: 'Setelan',
-            item: NavItem.settings,
-            activeItem: activeItem,
-            onTap: onItemSelected,
-          ),
-          const SizedBox(height: 24),
-        ],
+          );
+        },
       ),
     );
   }

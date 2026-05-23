@@ -153,7 +153,8 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
   final List<String> _uiCategories = [
     'ALL', 'KHS', 'Coklat', 'Green Tea', 'Milo', 'Taro', 
     'Alpukat', 'Strawberry', 'Durian', 'Mangga', 
-    'Tiramisu', 'Vanila X Red Velvet', 'Traditional Series', 'Drinks'
+    'Tiramisu', 'Vanila X Red Velvet', 'Traditional Series', 'Drinks',
+    'Mojito Series', 'Sticky Rice', 'Tea Series', 'Campur'
   ];
 
   @override
@@ -176,6 +177,18 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _supabase.from('product').stream(primaryKey: ['id']).order('name'),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Error: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -184,13 +197,62 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
                 }
 
                 // Transformasi data raw Map dari Supabase menjadi Object Model Product Flutter kamu
+                final dummyList = buildDummyProducts();
                 final allProducts = snapshot.data!.map((map) {
+                  final String name = map['name'] ?? '';
+                  final String category = map['category'] ?? 'Minuman';
+                  
+                  // Cari emoji yang cocok dari dummy data berdasarkan nama
+                  String matchedEmoji = '🍵';
+                  try {
+                    final matchedDummy = dummyList.firstWhere(
+                      (d) => d.name.toLowerCase() == name.toLowerCase(),
+                    );
+                    matchedEmoji = matchedDummy.imageEmoji;
+                  } catch (_) {
+                    // Fallback berdasarkan kategori jika nama tidak cocok secara presisi
+                    final catLower = category.toLowerCase();
+                    if (catLower.contains('coklat')) {
+                      matchedEmoji = '🍫';
+                    } else if (catLower.contains('keju')) {
+                      matchedEmoji = '🧀';
+                    } else if (catLower.contains('kelapa')) {
+                      matchedEmoji = '🍵';
+                    } else if (catLower.contains('milo')) {
+                      matchedEmoji = '🥤';
+                    } else if (catLower.contains('taro')) {
+                      matchedEmoji = '🍠';
+                    } else if (catLower.contains('alpukat')) {
+                      matchedEmoji = '🥑';
+                    } else if (catLower.contains('strawberry')) {
+                      matchedEmoji = '🍓';
+                    } else if (catLower.contains('durian')) {
+                      matchedEmoji = '🍈';
+                    } else if (catLower.contains('mangga')) {
+                      matchedEmoji = '🥭';
+                    } else if (catLower.contains('tiramisu')) {
+                      matchedEmoji = '🍰';
+                    } else if (catLower.contains('vanila')) {
+                      matchedEmoji = '🍦';
+                    } else if (catLower.contains('oncom')) {
+                      matchedEmoji = '🍘';
+                    } else if (catLower.contains('abon')) {
+                      matchedEmoji = '🍗';
+                    } else if (catLower.contains('klepon')) {
+                      matchedEmoji = '🟢';
+                    } else if (catLower.contains('mojito')) {
+                      matchedEmoji = '🥤';
+                    } else if (catLower.contains('campur')) {
+                      matchedEmoji = '🍧';
+                    }
+                  }
+
                   return Product(
                     id: map['id'].toString(),
-                    name: map['name'] ?? '',
-                    category: map['category'] ?? 'Minuman',
+                    name: name,
+                    category: category,
                     price: (map['price'] as num).toDouble(),
-                    imageEmoji: map['category'].toString().toLowerCase().contains('coklat') ? '🍫' : '🍵',
+                    imageEmoji: matchedEmoji,
                     stock: map['stock'] ?? 0,
                     minStock: 10,
                   );
@@ -198,8 +260,28 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
 
                 // Proses Filter Berdasarkan Pencarian & Tab Kategori
                 final filteredProducts = allProducts.where((p) {
-                  final matchCat = _selectedCategory == 'ALL' ||
-                      p.category.toLowerCase() == _selectedCategory.toLowerCase();
+                  bool matchCat = false;
+                  final cat = p.category.toLowerCase();
+                  if (_selectedCategory == 'ALL') {
+                    matchCat = true;
+                  } else if (_selectedCategory == 'KHS') {
+                    matchCat = cat.startsWith('khs');
+                  } else if (_selectedCategory == 'Drinks') {
+                    matchCat = cat.startsWith('drinks');
+                  } else if (_selectedCategory == 'Vanila X Red Velvet') {
+                    matchCat = cat.contains('vanila') || cat.contains('velvet');
+                  } else if (_selectedCategory == 'Traditional Series') {
+                    matchCat = cat.contains('tradisional') || cat.contains('traditional');
+                  } else if (_selectedCategory == 'Mojito Series') {
+                    matchCat = cat.contains('mojito');
+                  } else if (_selectedCategory == 'Sticky Rice') {
+                    matchCat = cat.contains('sticky') || cat.contains('rice');
+                  } else if (_selectedCategory == 'Tea Series') {
+                    matchCat = cat.contains('tea');
+                  } else {
+                    matchCat = cat.contains(_selectedCategory.toLowerCase());
+                  }
+
                   final matchSearch = _searchQuery.isEmpty ||
                       p.name.toLowerCase().contains(_searchQuery.toLowerCase());
                   return matchCat && matchSearch;

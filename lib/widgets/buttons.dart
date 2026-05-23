@@ -71,12 +71,16 @@ class SecondaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
+  final Widget? iconWidget;
+  final bool isLoading;
 
   const SecondaryButton({
     super.key,
     required this.label,
     this.onPressed,
     this.icon,
+    this.iconWidget,
+    this.isLoading = false,
   });
 
   @override
@@ -85,29 +89,41 @@ class SecondaryButton extends StatelessWidget {
       width: double.infinity,
       height: 52,
       child: OutlinedButton(
-        onPressed: onPressed,
+        onPressed: isLoading ? null : onPressed,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.onSurface,
           side: const BorderSide(color: AppColors.outlineVariant, width: 1.5),
           shape: const StadiumBorder(),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20, color: AppColors.onSurfaceVariant),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              label,
-              style: AppTextStyles.bodyMd.copyWith(
-                color: AppColors.onSurface,
-                fontWeight: FontWeight.w600,
+        child: isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppColors.primary,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (iconWidget != null) ...[
+                    iconWidget!,
+                    const SizedBox(width: 8),
+                  ] else if (icon != null) ...[
+                    Icon(icon, size: 20, color: AppColors.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    label,
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

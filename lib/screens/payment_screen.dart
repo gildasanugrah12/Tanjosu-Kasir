@@ -67,6 +67,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         'cash_received': _method == 'Tunai' ? uangDiterima : totalBayar,
         'cash_change': _method == 'Tunai' ? uangKembalian : 0,
         'discount': 0,
+        'status': 'Lagi Dibuat',
       }).select().single();
 
       final int transactionId = insertedTx['id'];

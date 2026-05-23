@@ -5,6 +5,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../widgets/buttons.dart';
 import 'main_shell.dart';
+import '../widgets/glass_container.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,7 +14,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
   final _emailCtrl = TextEditingController(text: '');
   final _passCtrl = TextEditingController(text: '');
   bool _obscure = true;
@@ -24,7 +26,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
   }
@@ -73,13 +78,18 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
         // Notifikasi Berhasil Berdasarkan Role
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Selamat Datang! Masuk sebagai ${role.toUpperCase()}')),
+          SnackBar(
+            content: Text(
+              'Selamat Datang! Masuk sebagai ${role.toUpperCase()}',
+            ),
+          ),
         );
 
         // 🔴 Langkah C: Pindahkan user ke halaman utama (MainShell) dengan membawa parameter role
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, a1, a2) => MainShell(role: role), // ◄ Diisi di sini
+            pageBuilder: (_, a1, a2) =>
+                MainShell(role: role), // ◄ Diisi di sini
             transitionsBuilder: (_, anim, __, child) =>
                 FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 400),
@@ -98,7 +108,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Terjadi kesalahan jaringan atau sistem.'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Terjadi kesalahan jaringan atau sistem.'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -106,220 +119,197 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 800;
-          
-          Widget leftPanel = Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF2D4A00),
-                  Color(0xFF446900),
-                  Color(0xFF74A12E),
-                ],
-                stops: [0, 0.5, 1],
-              ),
-            ),
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: Padding(
-                padding: EdgeInsets.all(isWide ? 64 : 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                              image: AssetImage('assets/images/logotanjosu.jpeg'),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Text(
-                          'tanjosu',
-                          style: GoogleFonts.manrope(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (isWide) const Spacer() else const SizedBox(height: 32),
-                    const Text('🍵', style: TextStyle(fontSize: 64)),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Selamat Datang\ndi Tanjosu POS',
-                      style: AppTextStyles.displayLg.copyWith(
-                        color: Colors.white,
-                        height: 1.15,
-                        fontSize: isWide ? null : 32,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Sistem kasir premium untuk pengalaman\nservis yang lebih cepat dan elegan.',
-                      style: AppTextStyles.bodyLg.copyWith(
-                        color: Colors.white.withOpacity(0.75),
-                        height: 1.6,
-                      ),
-                    ),
-                    if (isWide) const Spacer() else const SizedBox(height: 32),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: ['☕ Multi-Menu', '📊 Laporan Real-time', '🧾 Cetak Struk']
-                          .map((f) => Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(99),
-                                  border: Border.all(color: Colors.white.withOpacity(0.3)),
-                                ),
-                                child: Text(
-                                  f,
-                                  style: AppTextStyles.labelSm.copyWith(color: Colors.white),
-                                ),
-                              ))
-                          .toList(),
-                    ),
-                  ],
+      body: Stack(
+        children: [
+          // 1. Fullscreen background image centered
+          Container(
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: const AssetImage('assets/images/loginlogo.png'),
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                colorFilter: ColorFilter.mode(
+                  Colors.black.withOpacity(0.4),
+                  BlendMode.srcOver,
                 ),
               ),
             ),
-          );
+          ),
 
-          Widget rightPanel = Container(
-            color: AppColors.background,
+          // 2. Translucent primary color wash overlay
+          Container(color: AppColors.primary.withOpacity(0.12)),
+
+          // 3. Center Login Card with Responsive LayoutBuilder & Glass Container
+          Center(
             child: FadeTransition(
               opacity: _fadeAnim,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  child: Padding(
-                    padding: EdgeInsets.all(isWide ? 48 : 32),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Masuk ke Akun', style: AppTextStyles.headlineMd),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Masukkan kredensial Anda untuk melanjutkan',
-                          style: AppTextStyles.bodySm,
-                        ),
-                        const SizedBox(height: 40),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenWidth = constraints.maxWidth;
 
-                        Text('Email', style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurface)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          style: AppTextStyles.bodyMd,
-                          decoration: const InputDecoration(
-                            hintText: 'nama@tanjosu.id',
-                            prefixIcon: Icon(Icons.mail_outline_rounded, size: 20),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
+                  // Highly fluid responsive card width:
+                  // - On mobile (< 600px): takes screenWidth - 48 (24px margins on each side)
+                  // - On tablet (< 960px): dynamically scales between 440px and 560px
+                  // - On desktop (>= 960px): elegant 480px width
+                  double cardWidth;
+                  if (screenWidth < 600) {
+                    cardWidth = screenWidth - 48.0;
+                  } else if (screenWidth < 960) {
+                    cardWidth = (screenWidth * 0.6).clamp(440.0, 560.0);
+                  } else {
+                    cardWidth = 480.0;
+                  }
 
-                        Text('Password', style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurface)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _passCtrl,
-                          obscureText: _obscure,
-                          style: AppTextStyles.bodyMd,
-                          decoration: InputDecoration(
-                            hintText: '••••••••',
-                            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-                            suffixIcon: IconButton(
-                              icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
-                              onPressed: () => setState(() => _obscure = !_obscure),
-                            ),
-                          ),
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 32,
+                    ),
+                    child: Center(
+                      child: GlassContainer(
+                        width: cardWidth,
+                        borderRadius: 24,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 36,
+                          vertical: 40,
                         ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              'Lupa Password?',
-                              style: AppTextStyles.labelSm.copyWith(color: AppColors.primary),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        PrimaryButton(
-                          label: 'Masuk',
-                          icon: Icons.arrow_forward_rounded,
-                          isLoading: _isLoading,
-                          onPressed: _login, // Memanggil fungsi login Supabase di atas
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
+                        backgroundColor: Colors.white.withOpacity(0.1),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(child: Divider(color: AppColors.outlineVariant)),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text('atau', style: AppTextStyles.labelSm),
+                            // Tanjosu Logo Emblem
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 3,
+                                ),
+                                image: const DecorationImage(
+                                  image: AssetImage(
+                                    'assets/images/logotanjosu.jpeg',
+                                  ),
+                                  fit: BoxFit.cover,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
                             ),
-                            Expanded(child: Divider(color: AppColors.outlineVariant)),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Tanjosu',
+                              style: GoogleFonts.manrope(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Masukkan kredensial Anda untuk melanjutkan',
+                              style: AppTextStyles.bodySm.copyWith(
+                                color: AppColors.onSurface.withOpacity(0.6),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 36),
+
+                            // Form Inputs
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Email',
+                                style: AppTextStyles.labelSm.copyWith(
+                                  color: AppColors.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _emailCtrl,
+                              keyboardType: TextInputType.emailAddress,
+                              style: AppTextStyles.bodyMd,
+                              decoration: const InputDecoration(
+                                hintText: 'nama@tanjosu.id',
+                                prefixIcon: Icon(
+                                  Icons.mail_outline_rounded,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Password',
+                                style: AppTextStyles.labelSm.copyWith(
+                                  color: AppColors.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _passCtrl,
+                              obscureText: _obscure,
+                              style: AppTextStyles.bodyMd,
+                              decoration: InputDecoration(
+                                hintText: '••••••••',
+                                prefixIcon: const Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 20,
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscure
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 20,
+                                  ),
+                                  onPressed: () =>
+                                      setState(() => _obscure = !_obscure),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () {},
+                                child: Text(
+                                  'Lupa Password?',
+                                  style: AppTextStyles.labelSm.copyWith(
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+
+                            PrimaryButton(
+                              label: 'Masuk',
+                              icon: Icons.arrow_forward_rounded,
+                              isLoading: _isLoading,
+                              onPressed: _login,
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        SecondaryButton(
-                          label: 'Masuk sebagai Demo',
-                          icon: Icons.play_arrow_rounded,
-                          onPressed: () {
-                            // 🔴 Untuk Demo, otomatis diset sebagai 'owner' agar kamu bisa tes semua halaman
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const MainShell(role: 'owner')),
-                            );
-                          },
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
-          );
-
-          if (isWide) {
-            return Row(
-              children: [
-                Expanded(flex: 5, child: leftPanel),
-                Expanded(flex: 4, child: rightPanel),
-              ],
-            );
-          } else {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    children: [
-                      leftPanel,
-                      Expanded(child: rightPanel),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
-        },
+          ),
+        ],
       ),
     );
   }
