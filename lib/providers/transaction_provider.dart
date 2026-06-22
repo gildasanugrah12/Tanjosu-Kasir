@@ -1,15 +1,20 @@
 import 'package:flutter/foundation.dart';
-import '../models/transaction.dart';
-import '../models/cart_item.dart';
-import 'cart_provider.dart';
-import 'stock_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// PAKAI IMPORT ABSOLUT BIAR FLUTTER GAK BINGUNG NYARI FILE
+import 'package:tanjosu_pos/models/transaction.dart';
+import 'package:tanjosu_pos/models/cart_item.dart';
+import 'package:tanjosu_pos/providers/cart_provider.dart';
+import 'package:tanjosu_pos/providers/stock_provider.dart';
 
 class TransactionProvider extends ChangeNotifier {
   final List<Transaction> _transactions = [];
-  int _counter = 8; // mulai dari 9 karena dummy history sudah 1-8
+  int _counter = 8;
+
+  final _supabase = Supabase.instance.client;
 
   TransactionProvider() {
-    // Populate dummy transactions to match history and test KDS
     _transactions.addAll([
       Transaction(
         id: '#TJN-008',
@@ -47,115 +52,6 @@ class TransactionProvider extends ChangeNotifier {
         paymentMethod: 'QRIS',
         orderType: 'Takeaway',
         status: 'Lagi Dibuat',
-      ),
-      Transaction(
-        id: '#TJN-006',
-        customerName: 'Amir',
-        dateTime: DateTime.now().subtract(const Duration(hours: 1, minutes: 12)),
-        items: const [
-          TransactionItem(name: 'KHS Coklat Crunchy', emoji: '🧇', quantity: 1, unitPrice: 14000, subtotal: 14000),
-          TransactionItem(name: 'KHS Tiramisu', emoji: '🍰', quantity: 1, unitPrice: 12000, subtotal: 12000),
-        ],
-        subtotal: 26000,
-        discountPercent: 0,
-        discountAmount: 0,
-        taxAmount: 2860,
-        grandTotal: 28860,
-        amountPaid: 30000,
-        change: 1140,
-        paymentMethod: 'Tunai',
-        orderType: 'Dine-in',
-        status: 'Selesai',
-      ),
-      Transaction(
-        id: '#TJN-005',
-        customerName: 'Dewi',
-        dateTime: DateTime.now().subtract(const Duration(hours: 2, minutes: 5)),
-        items: const [
-          TransactionItem(name: 'KHS Alpukat', emoji: '🥑', quantity: 2, unitPrice: 21000, subtotal: 42000),
-        ],
-        subtotal: 42000,
-        discountPercent: 0,
-        discountAmount: 0,
-        taxAmount: 4620,
-        grandTotal: 46620,
-        amountPaid: 50000,
-        change: 3380,
-        paymentMethod: 'Transfer',
-        orderType: 'Delivery',
-        status: 'Selesai',
-      ),
-      Transaction(
-        id: '#TJN-004',
-        customerName: 'Rian',
-        dateTime: DateTime.now().subtract(const Duration(hours: 3, minutes: 22)),
-        items: const [
-          TransactionItem(name: 'KHS Milo Keju', emoji: '🧀', quantity: 4, unitPrice: 14000, subtotal: 56000),
-        ],
-        subtotal: 56000,
-        discountPercent: 0,
-        discountAmount: 0,
-        taxAmount: 6160,
-        grandTotal: 62160,
-        amountPaid: 100000,
-        change: 37840,
-        paymentMethod: 'QRIS',
-        orderType: 'Dine-in',
-        status: 'Selesai',
-      ),
-      Transaction(
-        id: '#TJN-003',
-        customerName: 'Lina',
-        dateTime: DateTime.now().subtract(const Duration(hours: 4, minutes: 40)),
-        items: const [
-          TransactionItem(name: 'KHS Durian Keju', emoji: '🧀', quantity: 2, unitPrice: 18000, subtotal: 36000),
-        ],
-        subtotal: 36000,
-        discountPercent: 0,
-        discountAmount: 0,
-        taxAmount: 3960,
-        grandTotal: 39960,
-        amountPaid: 50000,
-        change: 10040,
-        paymentMethod: 'Kartu',
-        orderType: 'Takeaway',
-        status: 'Selesai',
-      ),
-      Transaction(
-        id: '#TJN-002',
-        customerName: 'Eko',
-        dateTime: DateTime.now().subtract(const Duration(hours: 5, minutes: 10)),
-        items: const [
-          TransactionItem(name: 'KHS Mangga', emoji: '🥭', quantity: 1, unitPrice: 14000, subtotal: 14000),
-        ],
-        subtotal: 14000,
-        discountPercent: 0,
-        discountAmount: 0,
-        taxAmount: 1540,
-        grandTotal: 15540,
-        amountPaid: 20000,
-        change: 4460,
-        paymentMethod: 'Tunai',
-        orderType: 'Dine-in',
-        status: 'Selesai',
-      ),
-      Transaction(
-        id: '#TJN-001',
-        customerName: 'Yanto',
-        dateTime: DateTime.now().subtract(const Duration(hours: 6, minutes: 30)),
-        items: const [
-          TransactionItem(name: 'KHS Taro Keju', emoji: '🧀', quantity: 3, unitPrice: 14000, subtotal: 42000),
-        ],
-        subtotal: 42000,
-        discountPercent: 0,
-        discountAmount: 0,
-        taxAmount: 4620,
-        grandTotal: 46620,
-        amountPaid: 50000,
-        change: 3380,
-        paymentMethod: 'QRIS',
-        orderType: 'Dine-in',
-        status: 'Selesai',
       ),
     ]);
   }
@@ -212,14 +108,13 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
-  /// Proses lengkap: buat transaksi + kurangi stok + bersihkan keranjang
-  Transaction checkout({
+  Future<Transaction> checkout({
     required String customerName,
     required CartProvider cart,
     required StockProvider stockProvider,
     required double amountPaid,
     required String paymentMethod,
-  }) {
+  }) async {
     final tx = createTransaction(
       customerName: customerName,
       cartItems: cart.items,
@@ -233,12 +128,56 @@ class TransactionProvider extends ChangeNotifier {
       orderType: cart.orderType.name,
     );
 
-    // Kurangi stok
+    try {
+      if (kDebugMode) print("🌐 [SUPABASE] Memulai upload transaksi ke database...");
+
+      final txInsertResponse = await _supabase.from('transactions').insert({
+        'customer_name': tx.customerName,
+        'subtotal': tx.subtotal,
+        'discount_percent': tx.discountPercent,
+        'discount_amount': tx.discountAmount,
+        'tax_amount': tx.taxAmount,
+        'total_price': tx.grandTotal,
+        'amount_paid': tx.amountPaid,
+        'payment_method': tx.paymentMethod,
+        'order_type': tx.orderType,
+        'status': tx.status,
+      }).select().single();
+
+      final String dbTransactionId = txInsertResponse['id'].toString();
+
+      for (var item in cart.items) {
+        await _supabase.from('transaction_items').insert({
+          'transaction_id': int.tryParse(dbTransactionId) ?? dbTransactionId,
+          'product_name': item.product.name,
+          'price': item.product.price.toInt(),
+          'quantity': item.quantity,
+          'subtotal': (item.product.price * item.quantity).toInt(),
+          'product_id': int.tryParse(item.product.id) ?? 0,
+        });
+      }
+
+      if (kDebugMode) print("🚀 [SUPABASE] Transaksi & Detail Items sukses disimpan!");
+
+      for (var item in cart.items) {
+        await _supabase.from('dapur').insert({
+          'item_name': item.product.name,
+          'quantity': item.quantity,
+          'status': 'Memasak',
+          'notes': '', 
+        });
+      }
+      
+    } catch (e) {
+      if (kDebugMode) print("❌ [CHECKOUT ERROR] Gagal sinkronisasi Supabase: $e");
+    }
+
     for (var item in cart.items) {
       stockProvider.adjustStock(item.product.id, -item.quantity);
     }
 
     cart.clearCart();
+    
     return tx;
   }
 }

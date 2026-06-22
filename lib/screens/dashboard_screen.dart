@@ -1,9 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
-import '../models/report_data.dart';
 
+// ==================== MODEL DATA ASLI ====================
+class SalesDatum {
+  final String label;
+  final double amount;
+  final int transactions;
+
+  SalesDatum({
+    required this.label,
+    required this.amount,
+    required this.transactions,
+  });
+}
+
+class TopProduct {
+  final String name;
+  final int qty;
+  final double pct;
+  final String emoji;
+
+  TopProduct({
+    required this.name,
+    required this.qty,
+    required this.pct,
+    required this.emoji,
+  });
+}
+
+enum ReportPeriod { harian, mingguan, bulanan, tahunan }
+
+// ==================== MAIN SCREEN ====================
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -12,502 +42,434 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final _supabase = Supabase.instance.client;
   ReportPeriod _selectedPeriod = ReportPeriod.harian;
-  String _selectedDay = 'Minggu';
+  String _selectedDay = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDay = _getHariIndo(DateTime.now().weekday);
+  }
+
+  String _getHariIndo(int weekday) {
+    switch (weekday) {
+      case 1: return 'Senin';
+      case 2: return 'Selasa';
+      case 3: return 'Rabu';
+      case 4: return 'Kamis';
+      case 5: return 'Jumat';
+      case 6: return 'Sabtu';
+      default: return 'Minggu';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    ReportSummary summary;
-    List<SalesDatum> salesData;
-    List<TopProduct> topProducts;
-    String periodLabel;
-
-    if (_selectedPeriod == ReportPeriod.harian) {
-      salesData = harianData;
-      if (_selectedDay == 'Senin') {
-        summary = seninSummary;
-        topProducts = topProductsSenin;
-        periodLabel = 'Senin';
-      } else if (_selectedDay == 'Selasa') {
-        summary = selasaSummary;
-        topProducts = topProductsSelasa;
-        periodLabel = 'Selasa';
-      } else if (_selectedDay == 'Rabu') {
-        summary = rabuSummary;
-        topProducts = topProductsRabu;
-        periodLabel = 'Rabu';
-      } else if (_selectedDay == 'Kamis') {
-        summary = kamisSummary;
-        topProducts = topProductsKamis;
-        periodLabel = 'Kamis';
-      } else if (_selectedDay == 'Jumat') {
-        summary = jumatSummary;
-        topProducts = topProductsJumat;
-        periodLabel = 'Jumat';
-      } else if (_selectedDay == 'Sabtu') {
-        summary = sabtuSummary;
-        topProducts = topProductsSabtu;
-        periodLabel = 'Sabtu';
-      } else {
-        summary = mingguSummary;
-        topProducts = topProductsMinggu;
-        periodLabel = 'Minggu';
-      }
-    } else {
-      summary = getSummary(_selectedPeriod);
-      salesData = getSalesData(_selectedPeriod);
-      topProducts = getTopProducts(_selectedPeriod);
-      periodLabel = getPeriodLabel(_selectedPeriod);
-    }
     final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final lebarLayar = MediaQuery.of(context).size.width;
+    final isWeb = lebarLayar > 950; // Ditinggikan sedikit thresholdnya agar lebih aman di web
 
     return Container(
       color: AppColors.background,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header & Tabs
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _supabase.from('transactions').stream(primaryKey: ['id']).order('created_at', ascending: false),
+        builder: (context, txSnapshot) {
+          if (txSnapshot.hasError) {
+            return Center(child: Text('🚨 Eror database: ${txSnapshot.error}', style: const TextStyle(color: Colors.red)));
+          }
+          if (txSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final allTransactions = txSnapshot.data ?? [];
+
+          return StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _supabase.from('transaction_items').stream(primaryKey: ['id']),
+            builder: (context, itemsSnapshot) {
+              final allTransactionItems = itemsSnapshot.data ?? [];
+
+              // ==================== LOGIKA PENCOCOKAN REAL-TIME ====================
+              Map<String, int> omzetPerHari = {'Senin': 0, 'Selasa': 0, 'Rabu': 0, 'Kamis': 0, 'Jumat': 0, 'Sabtu': 0, 'Minggu': 0};
+              Map<String, int> txPerHari = {'Senin': 0, 'Selasa': 0, 'Rabu': 0, 'Kamis': 0, 'Jumat': 0, 'Sabtu': 0, 'Minggu': 0};
+              Map<String, int> pcsPerHari = {'Senin': 0, 'Selasa': 0, 'Rabu': 0, 'Kamis': 0, 'Jumat': 0, 'Sabtu': 0, 'Minggu': 0};
+              
+              int totalOmzetSemua = 0;
+              int totalItemsSemua = 0;
+              Map<int, String> txIdToHariMap = {};
+              
+              for (var tx in allTransactions) {
+                final txId = (tx['id'] as num? ?? -1).toInt();
+                final price = (tx['total_price'] as num? ?? 0).toInt();
+                totalOmzetSemua += price;
+
+                try {
+                  final date = DateTime.parse(tx['created_at'] ?? '').toLocal();
+                  final namaHari = _getHariIndo(date.weekday);
+                  
+                  if (txId != -1) {
+                    txIdToHariMap[txId] = namaHari;
+                  }
+
+                  omzetPerHari[namaHari] = (omzetPerHari[namaHari] ?? 0) + price;
+                  txPerHari[namaHari] = (txPerHari[namaHari] ?? 0) + 1;
+                } catch (_) {}
+              }
+
+              for (var item in allTransactionItems) {
+                final qty = (item['quantity'] as num? ?? 0).toInt();
+                totalItemsSemua += qty;
+
+                final itemTxId = (item['transaction_id'] as num? ?? -1).toInt();
+                if (itemTxId != -1 && txIdToHariMap.containsKey(itemTxId)) {
+                  String hariTx = txIdToHariMap[itemTxId]!;
+                  pcsPerHari[hariTx] = (pcsPerHari[hariTx] ?? 0) + qty;
+                }
+              }
+
+              List<SalesDatum> salesData = omzetPerHari.entries.map((e) {
+                return SalesDatum(label: e.key, amount: e.value.toDouble(), transactions: txPerHari[e.key] ?? 0);
+              }).toList();
+
+              int currentRevenue = 0;
+              int currentTxCount = 0;
+              int currentItemsCount = 0;
+
+              if (_selectedPeriod == ReportPeriod.harian) {
+                currentRevenue = omzetPerHari[_selectedDay] ?? 0;
+                currentTxCount = txPerHari[_selectedDay] ?? 0;
+                currentItemsCount = pcsPerHari[_selectedDay] ?? 0;
+              } else {
+                currentRevenue = totalOmzetSemua;
+                currentTxCount = allTransactions.length;
+                currentItemsCount = totalItemsSemua;
+              }
+
+              double avgOrder = currentTxCount > 0 ? currentRevenue / currentTxCount : 0;
+              String periodLabel = _selectedPeriod == ReportPeriod.harian ? _selectedDay : _selectedPeriod.name.toUpperCase();
+
+              Map<String, int> produkQtyMap = {};
+              for (var item in allTransactionItems) {
+                final pName = item['product_name'] ?? item['item_name'] ?? 'Menu';
+                final itemTxId = (item['transaction_id'] as num? ?? -1).toInt();
+                
+                if (_selectedPeriod == ReportPeriod.harian) {
+                  if (itemTxId != -1 && txIdToHariMap[itemTxId] == _selectedDay) {
+                    produkQtyMap[pName] = (produkQtyMap[pName] ?? 0) + (item['quantity'] as num? ?? 0).toInt();
+                  }
+                } else {
+                  produkQtyMap[pName] = (produkQtyMap[pName] ?? 0) + (item['quantity'] as num? ?? 0).toInt();
+                }
+              }
+
+              var sortedProduk = produkQtyMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+              int maxQty = sortedProduk.isNotEmpty ? sortedProduk.first.value : 1;
+
+              List<TopProduct> topProducts = sortedProduk.take(5).map((e) {
+                String emoji = '🍔';
+                if (e.key.toLowerCase().contains('tea') || e.key.toLowerCase().contains('drink')) emoji = '🍹';
+                if (e.key.toLowerCase().contains('pudding')) emoji = '🍮';
+                return TopProduct(name: e.key, qty: e.value, pct: e.value / maxQty, emoji: emoji);
+              }).toList();
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Laporan & Analitik', style: AppTextStyles.headlineMd),
-                    const SizedBox(height: 4),
-                    Text('Pembaruan real-time', style: AppTextStyles.labelSm),
-                  ],
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: ReportPeriod.values.map((period) {
-                      final isSelected = _selectedPeriod == period;
-                      return GestureDetector(
-                        onTap: () => setState(() => _selectedPeriod = period),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    // HEADER SECTION
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Laporan & Analitik', style: AppTextStyles.headlineMd),
+                            const SizedBox(height: 4),
+                            Text('📢 Pembaruan real-time aktif dari Supabase', style: AppTextStyles.labelSm.copyWith(color: Colors.green, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        Container(
                           decoration: BoxDecoration(
-                            color: isSelected ? AppColors.primary : Colors.transparent,
+                            color: AppColors.surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            period.name.toUpperCase(),
-                            style: AppTextStyles.labelSm.copyWith(
-                              color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
-                            ),
+                          child: Row(
+                            children: ReportPeriod.values.map((period) {
+                              final isSelected = _selectedPeriod == period;
+                              return GestureDetector(
+                                onTap: () => setState(() => _selectedPeriod = period),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? AppColors.primary : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    period.name.toUpperCase(),
+                                    style: AppTextStyles.labelSm.copyWith(
+                                      color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-            // KPI Cards
-            Row(
-              children: [
-                _KpiCard(
-                  icon: '💰',
-                  label: 'Pendapatan $periodLabel',
-                  value: fmt.format(summary.totalRevenue),
-                  change: '${summary.revenueChange > 0 ? '+' : ''}${summary.revenueChange}%',
-                  positive: summary.revenueChange >= 0,
-                ),
-                const SizedBox(width: 16),
-                _KpiCard(
-                  icon: '🧾',
-                  label: 'Transaksi',
-                  value: '${summary.totalTransactions}',
-                  change: '${summary.transactionChange > 0 ? '+' : ''}${summary.transactionChange}%',
-                  positive: summary.transactionChange >= 0,
-                ),
-                const SizedBox(width: 16),
-                _KpiCard(
-                  icon: '☕',
-                  label: 'Item Terjual',
-                  value: '${summary.totalItems}',
-                  change: '+5.2%',
-                  positive: true,
-                ),
-                const SizedBox(width: 16),
-                _KpiCard(
-                  icon: '⭐',
-                  label: 'Rata-rata Order',
-                  value: fmt.format(summary.avgOrder),
-                  change: '-1.3%',
-                  positive: false,
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+                    // FIX 1: KPI CARDS BERBARIS SEMPURNA (4 KOLOM DI WEB)
+                    isWeb 
+                      ? Row(
+                          children: [
+                            Expanded(child: _KpiCard(icon: '💰', label: 'Pendapatan $periodLabel', value: fmt.format(currentRevenue), change: 'Live')),
+                            const SizedBox(width: 16),
+                            Expanded(child: _KpiCard(icon: '🧾', label: 'Transaksi', value: '$currentTxCount Order', change: 'Sync')),
+                            const SizedBox(width: 16),
+                            Expanded(child: _KpiCard(icon: '☕', label: 'Item Terjual', value: '$currentItemsCount Pcs', change: 'Realtime')),
+                            const SizedBox(width: 16),
+                            Expanded(child: _KpiCard(icon: '⭐', label: 'Rata-rata Order', value: fmt.format(avgOrder), change: 'Nilai')),
+                          ],
+                        )
+                      : Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: [
+                            _buildMobileKpiWrapper(
+                              context: context,
+                              child: _KpiCard(icon: '💰', label: 'Pendapatan $periodLabel', value: fmt.format(currentRevenue), change: 'Live'),
+                            ),
+                            _buildMobileKpiWrapper(
+                              context: context,
+                              child: _KpiCard(icon: '🧾', label: 'Transaksi', value: '$currentTxCount Order', change: 'Sync'),
+                            ),
+                            _buildMobileKpiWrapper(
+                              context: context,
+                              child: _KpiCard(icon: '☕', label: 'Item Terjual', value: '$currentItemsCount Pcs', change: 'Realtime'),
+                            ),
+                            _buildMobileKpiWrapper(
+                              context: context,
+                              child: _KpiCard(icon: '⭐', label: 'Rata-rata Order', value: fmt.format(avgOrder), change: 'Nilai'),
+                            ),
+                          ],
+                        ),
+                    const SizedBox(height: 24),
 
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Sales chart
-                Expanded(
-                  flex: 3,
-                  child: _ChartCard(
-                    title: 'Grafik Penjualan $periodLabel',
-                    data: salesData,
-                    selectedDay: _selectedPeriod == ReportPeriod.harian ? _selectedDay : null,
-                    onDayChanged: (day) {
-                      setState(() {
-                        _selectedDay = day;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Top products
-                Expanded(
-                  flex: 2,
-                  child: _TopProductsCard(products: topProducts, periodLabel: periodLabel),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                    // FIX 2: MIDDLE SECTION (GRAFIK & TOP PRODUK REKREASI TINGGI SAMA BESAR)
+                    isWeb 
+                      ? IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: _ChartCard(
+                                  title: 'Grafik Penjualan Mingguan',
+                                  data: salesData,
+                                  selectedDay: _selectedPeriod == ReportPeriod.harian ? _selectedDay : null,
+                                  onDayChanged: (day) => setState(() => _selectedDay = day),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                flex: 2,
+                                child: _TopProductsCard(products: topProducts, periodLabel: 'Berdasarkan Data Cloud'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Column(
+                          children: [
+                            _ChartCard(
+                              title: 'Grafik Penjualan Mingguan',
+                              data: salesData,
+                              selectedDay: _selectedPeriod == ReportPeriod.harian ? _selectedDay : null,
+                              onDayChanged: (day) => setState(() => _selectedDay = day),
+                            ),
+                            const SizedBox(height: 16),
+                            _TopProductsCard(products: topProducts, periodLabel: 'Berdasarkan Data Cloud'),
+                          ],
+                        ),
+                    const SizedBox(height: 24),
 
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _PaymentBreakdown(),
+                    // FIX 3: BOTTOM SECTION (METODE BAYAR & RINGKASAN TINGGI SAMA BESAR)
+                    isWeb
+                      ? IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Expanded(child: _PaymentBreakdown()),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _RecentSummary(
+                                  totalTx: allTransactions.length,
+                                  totalItems: totalItemsSemua,
+                                  totalRevenue: totalOmzetSemua,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Column(
+                          children: [
+                            const _PaymentBreakdown(),
+                            const SizedBox(height: 16),
+                            _RecentSummary(
+                              totalTx: allTransactions.length,
+                              totalItems: totalItemsSemua,
+                              totalRevenue: totalOmzetSemua,
+                            ),
+                          ],
+                        ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _RecentSummary(summary: summary),
-                ),
-              ],
-            ),
-          ],
-        ),
+              );
+            },
+          );
+        },
       ),
     );
   }
+
+  // Helper Khusus Mobile agar Card terbagi 2 rata kanan-kiri
+  Widget _buildMobileKpiWrapper({required BuildContext context, required Widget child}) {
+    return SizedBox(width: (MediaQuery.of(context).size.width - 48 - 16) / 2, child: child);
+  }
 }
+
+// ==================== SUB-WIDGET COMPONENTS (CLEANED) ====================
 
 class _KpiCard extends StatelessWidget {
   final String icon;
   final String label;
   final String value;
   final String change;
-  final bool positive;
 
   const _KpiCard({
     required this.icon,
     required this.label,
     required this.value,
     required this.change,
-    required this.positive,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outlineVariant),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 4)),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(child: Text(icon, style: const TextStyle(fontSize: 22))),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.outlineVariant, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center, // Sejajarkan tengah secara vertikal jika ada perbedaan tinggi teks
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(icon, style: const TextStyle(fontSize: 24)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: positive ? AppColors.primaryFixed.withOpacity(0.4) : AppColors.errorContainer.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    change,
-                    style: AppTextStyles.labelXs.copyWith(
-                      color: positive ? AppColors.primary : AppColors.error,
-                    ),
-                  ),
+                child: Text(
+                  change,
+                  style: const TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(value, style: AppTextStyles.headlineMd),
-            const SizedBox(height: 4),
-            Text(label, style: AppTextStyles.labelSm),
-          ],
-        ),
+              )
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(label, style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurfaceVariant)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTextStyles.headlineSm.copyWith(fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ChartCard extends StatefulWidget {
+class _ChartCard extends StatelessWidget {
   final String title;
   final List<SalesDatum> data;
   final String? selectedDay;
-  final ValueChanged<String>? onDayChanged;
+  final Function(String) onDayChanged;
 
   const _ChartCard({
     required this.title,
     required this.data,
     this.selectedDay,
-    this.onDayChanged,
+    required this.onDayChanged,
   });
 
   @override
-  State<_ChartCard> createState() => _ChartCardState();
-}
-
-class _ChartCardState extends State<_ChartCard> {
-  int? _selectedBarIndex;
-
-  @override
-  void didUpdateWidget(covariant _ChartCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.data != widget.data) {
-      _selectedBarIndex = null;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.data.isEmpty) return const SizedBox();
-    final maxVal = widget.data.map((d) => d.amount).reduce((a, b) => a > b ? a : b);
-    final fmt = NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-    final fullFmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    double maxAmount = 1;
+    for (var d in data) {
+      if (d.amount > maxAmount) maxAmount = d.amount;
+    }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20), // Ditingkatkan sedikit paddingnya agar lebih luas
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(widget.title, style: AppTextStyles.headlineSm),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.selectedDay != null
-                          ? 'Klik batang hari untuk melihat detail analitik hari tersebut'
-                          : 'Distribusi penjualan per periode',
-                      style: AppTextStyles.labelXs.copyWith(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+          Text(title, style: AppTextStyles.headlineSm.copyWith(fontWeight: FontWeight.bold)),
+          const Spacer(), // Dorong chart ke bagian bawah container jika container membesar akibat IntrinsicHeight
           SizedBox(
-            height: 180,
+            height: 160,
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(widget.data.length, (i) {
-                final d = widget.data[i];
-                final h = maxVal == 0 ? 0.0 : (d.amount / maxVal) * 110;
-                
-                final isSelected = widget.selectedDay != null
-                    ? widget.selectedDay == d.label
-                    : _selectedBarIndex == i;
-
-                final isToday = widget.selectedDay != null
-                    ? d.label == 'Minggu'
-                    : i == widget.data.length - 1;
-                
-                final barColor = isSelected
-                    ? AppColors.primary
-                    : (widget.selectedDay != null || _selectedBarIndex != null)
-                        ? AppColors.primaryFixed.withOpacity(0.3)
-                        : isToday
-                            ? AppColors.primary
-                            : AppColors.primaryFixed.withOpacity(0.6);
-
+              children: data.map((d) {
+                final barHeightPct = d.amount / maxAmount;
+                final isSelected = selectedDay == d.label;
                 return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (widget.selectedDay != null && widget.onDayChanged != null) {
-                          widget.onDayChanged!(d.label);
-                        } else {
-                          setState(() {
-                            if (_selectedBarIndex == i) {
-                              _selectedBarIndex = null;
-                            } else {
-                              _selectedBarIndex = i;
-                            }
-                          });
-                        }
-                      },
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isSelected || (isToday && widget.selectedDay == null && _selectedBarIndex == null))
-                              Text(
-                                fmt.format(d.amount),
-                                style: AppTextStyles.labelXs.copyWith(
-                                  color: AppColors.primary,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            const SizedBox(height: 2),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              height: h,
-                              decoration: BoxDecoration(
-                                color: barColor,
-                                borderRadius: BorderRadius.circular(6),
-                                border: isSelected
-                                    ? Border.all(color: AppColors.primaryFixed, width: 2)
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              d.label,
-                              style: AppTextStyles.labelXs.copyWith(
-                                color: isSelected || (isToday && widget.selectedDay == null && _selectedBarIndex == null)
-                                    ? AppColors.primary
-                                    : AppColors.onSurfaceVariant,
-                                fontWeight: isSelected || (isToday && widget.selectedDay == null && _selectedBarIndex == null)
-                                    ? FontWeight.w700
-                                    : FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Divider(),
-          const SizedBox(height: 12),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            child: (widget.selectedDay != null || _selectedBarIndex != null)
-                ? () {
-                    final activeIdx = widget.selectedDay != null
-                        ? widget.data.indexWhere((d) => d.label == widget.selectedDay)
-                        : _selectedBarIndex;
-                    if (activeIdx == null || activeIdx == -1) return const SizedBox();
-                    final activeData = widget.data[activeIdx];
-                    
-                    return Container(
-                      key: ValueKey<String>(activeData.label),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.insights_rounded, color: AppColors.primary, size: 18),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.selectedDay != null
-                                      ? 'Detail Penjualan Hari ${activeData.label}'
-                                      : 'Detail Penjualan: ${activeData.label}',
-                                  style: AppTextStyles.bodySm.copyWith(fontWeight: FontWeight.bold, color: AppColors.onSurface),
-                                ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    Text(
-                                      'Omzet: ',
-                                      style: AppTextStyles.labelXs.copyWith(color: AppColors.onSurfaceVariant),
-                                    ),
-                                    Text(
-                                      fullFmt.format(activeData.amount),
-                                      style: AppTextStyles.labelXs.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Transaksi: ',
-                                      style: AppTextStyles.labelXs.copyWith(color: AppColors.onSurfaceVariant),
-                                    ),
-                                    Text(
-                                      '${activeData.transactions} Transaksi',
-                                      style: AppTextStyles.labelXs.copyWith(fontWeight: FontWeight.bold, color: AppColors.onSurface),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }()
-                : Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  child: GestureDetector(
+                    onTap: () => onDayChanged(d.label),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        const Text('💡 ', style: TextStyle(fontSize: 14)),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          height: (120 * barHeightPct).clamp(4, 120).toDouble(),
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primary : AppColors.primaryContainer,
+                            borderRadius: BorderRadius.circular(6), // Diperhalus corner barnya
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         Text(
-                          'Klik batang grafik hari apa saja untuk melihat rincian omzet & detail data penjualan.',
-                          style: AppTextStyles.labelXs.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                            fontStyle: FontStyle.italic,
+                          d.label.substring(0, 3),
+                          style: AppTextStyles.labelSm.copyWith(
+                            color: isSelected ? AppColors.primary : AppColors.onSurface,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                           ),
                         ),
                       ],
                     ),
                   ),
-          ),
+                );
+              }).toList(),
+            ),
+          )
         ],
       ),
     );
@@ -517,6 +479,7 @@ class _ChartCardState extends State<_ChartCard> {
 class _TopProductsCard extends StatelessWidget {
   final List<TopProduct> products;
   final String periodLabel;
+
   const _TopProductsCard({required this.products, required this.periodLabel});
 
   @override
@@ -524,50 +487,51 @@ class _TopProductsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Produk Terlaris', style: AppTextStyles.headlineSm),
-          const SizedBox(height: 4),
-          Text(periodLabel, style: AppTextStyles.labelSm),
+          Text('Produk Terlaris', style: AppTextStyles.headlineSm.copyWith(fontWeight: FontWeight.bold)),
+          Text(periodLabel, style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurfaceVariant)),
           const SizedBox(height: 20),
-          ...(products.map((p) => Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Row(
-              children: [
-                Text(p.emoji, style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+          products.isEmpty
+              ? const Expanded(child: Center(child: Text('Belum ada data penjualan')))
+              : Column(
+                  children: products.map((p) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Row(
                         children: [
-                          Text(p.name, style: AppTextStyles.bodyMd.copyWith(fontSize: 13)),
-                          const Spacer(),
-                          Text('${p.qty} terjual', style: AppTextStyles.labelXs),
+                          Text(p.emoji, style: const TextStyle(fontSize: 20)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(p.name, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: p.pct,
+                                    minHeight: 6, // Tebal indikator disamakan agar solid
+                                    backgroundColor: AppColors.surfaceContainerLow,
+                                    color: AppColors.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Text('${p.qty} pcs', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold)),
                         ],
                       ),
-                      const SizedBox(height: 5),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(
-                          value: p.pct,
-                          backgroundColor: AppColors.surfaceContainerHigh,
-                          valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                          minHeight: 5,
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  }).toList(),
                 ),
-              ],
-            ),
-          ))).toList(),
         ],
       ),
     );
@@ -577,73 +541,54 @@ class _TopProductsCard extends StatelessWidget {
 class _PaymentBreakdown extends StatelessWidget {
   const _PaymentBreakdown();
 
-  final _methods = const [
-    {'label': 'QRIS', 'pct': 0.52, 'color': 0xFF446900},
-    {'label': 'Tunai', 'pct': 0.26, 'color': 0xFF74A12E},
-    {'label': 'Kartu', 'pct': 0.14, 'color': 0xFFA5D65D},
-    {'label': 'Transfer', 'pct': 0.08, 'color': 0xFFC0F275},
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('Metode Pembayaran', style: AppTextStyles.headlineSm),
-          const SizedBox(height: 4),
-          Text('Distribusi rata-rata', style: AppTextStyles.labelSm),
+          Text('Metode Pembayaran', style: AppTextStyles.headlineSm.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
-          ..._methods.map((m) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 10, height: 10,
-                  decoration: BoxDecoration(color: Color(m['color'] as int), borderRadius: BorderRadius.circular(3)),
-                ),
-                const SizedBox(width: 8),
-                Text(m['label'] as String, style: AppTextStyles.bodySm),
-                const Spacer(),
-                SizedBox(
-                  width: 140,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(99),
-                    child: LinearProgressIndicator(
-                      value: m['pct'] as double,
-                      backgroundColor: AppColors.surfaceContainerHigh,
-                      valueColor: AlwaysStoppedAnimation(Color(m['color'] as int)),
-                      minHeight: 7,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 36,
-                  child: Text(
-                    '${((m['pct'] as double) * 100).toInt()}%',
-                    style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurface),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-              ],
-            ),
-          )),
+          _rowPay('💵 Tunai (Cash)', '80% Pengguna'),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Divider(height: 1),
+          ),
+          _rowPay('📱 QRIS / Transfer', '20% Pengguna'),
         ],
       ),
+      // Ditutup rapi tanpa spasi gantung
+    );
+  }
+
+  Widget _rowPay(String title, String subtitle) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w500)),
+        Text(subtitle, style: AppTextStyles.labelSm.copyWith(color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w600)),
+      ],
     );
   }
 }
 
 class _RecentSummary extends StatelessWidget {
-  final ReportSummary summary;
-  const _RecentSummary({required this.summary});
+  final int totalTx;
+  final int totalItems;
+  final int totalRevenue;
+
+  const _RecentSummary({
+    required this.totalTx,
+    required this.totalItems,
+    required this.totalRevenue,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -651,50 +596,40 @@ class _RecentSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center, // Agar sejajar rapi dengan metode pembayaran di sebelahnya
         children: [
-          Text('Ringkasan Total', style: AppTextStyles.headlineSm),
-          const SizedBox(height: 24),
-          _SummaryItem(icon: Icons.receipt_long_rounded, label: 'Total Transaksi', value: '${summary.totalTransactions}'),
-          _SummaryItem(icon: Icons.shopping_bag_outlined, label: 'Item Terjual', value: '${summary.totalItems}'),
-          _SummaryItem(icon: Icons.people_outline_rounded, label: 'Estimasi Pelanggan', value: '${(summary.totalTransactions * 0.9).toInt()}'),
-          _SummaryItem(icon: Icons.attach_money_rounded, label: 'Pendapatan Bersih', value: fmt.format(summary.totalRevenue), highlight: true),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool highlight;
-
-  const _SummaryItem({required this.icon, required this.label, required this.value, this.highlight = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: highlight ? AppColors.primary : AppColors.onSurfaceVariant),
-          const SizedBox(width: 10),
-          Text(label, style: AppTextStyles.bodySm),
-          const Spacer(),
-          Text(
-            value,
-            style: AppTextStyles.bodyMd.copyWith(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: highlight ? AppColors.primary : AppColors.onSurface,
-            ),
+          Text('Ringkasan Akumulasi Cloud', style: AppTextStyles.headlineSm.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Total Nota Masuk:', style: AppTextStyles.bodyMd),
+              Text('$totalTx Transaksi', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Total Kuantitas:', style: AppTextStyles.bodyMd),
+              Text('$totalItems Produk', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Total Omzet Kotor:', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold)),
+              Text(fmt.format(totalRevenue), style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary)),
+            ],
           ),
         ],
       ),

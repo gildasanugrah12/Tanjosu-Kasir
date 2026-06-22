@@ -12,9 +12,10 @@ class MenuScreen extends StatefulWidget {
 
 class _MenuScreenState extends State<MenuScreen> {
   String _selectedCategory = 'ALL';
+  String _searchQuery = ''; // 🔍 STATE PENCARIAN
+  final _searchController = TextEditingController(); // CONTROLLER SEARCH BAR
   final _supabase = Supabase.instance.client;
 
-  // Daftar kategori yang disesuaikan dengan tombol Tab di UI Anda
   final List<String> _uiCategories = [
     'ALL', 'KHS', 'Coklat', 'Green Tea', 'Milo', 'Taro', 
     'Alpukat', 'Strawberry', 'Durian', 'Mangga', 
@@ -22,7 +23,45 @@ class _MenuScreenState extends State<MenuScreen> {
     'Mojito Series', 'Sticky Rice', 'Tea Series', 'Campur'
   ];
 
-  // Fungsi Tambah & Edit langsung ke Supabase
+  // FUNGSI WARNA PASTEL MEWAH
+  Color _getPastelColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'coklat': return const Color(0xFFF5E6D3);
+      case 'khs': return const Color(0xFFE8F5E9);
+      case 'green tea': return const Color(0xFFE0F2F1);
+      case 'milo': return const Color(0xFFECEFF1);
+      case 'taro': return const Color(0xFFF3E5F5);
+      case 'alpukat': return const Color(0xFFF1F8E9);
+      case 'strawberry': return const Color(0xFFFFEBEE);
+      case 'durian': return const Color(0xFFFFFDE7);
+      case 'mangga': return const Color(0xFFFFF3E0);
+      case 'mojito series': 
+      case 'drinks':
+      case 'tea series': return const Color(0xFFE1F5FE);
+      case 'sticky rice': return const Color(0xFFFAFAFA);
+      default: return AppColors.surfaceContainerHigh;
+    }
+  }
+
+  // FUNGSI EMOJI DINAMIS
+  String _getEmoji(String category) {
+    final cat = category.toLowerCase();
+    if (cat.contains('coklat')) return '🍫';
+    if (cat.contains('strawberry')) return '🍓';
+    if (cat.contains('mangga')) return '🥭';
+    if (cat.contains('alpukat')) return '🥑';
+    if (cat.contains('mojito')) return '🍹';
+    if (cat.contains('tea')) return '🍵';
+    if (cat.contains('pudding')) return '🍮';
+    return '✨';
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _showProductDialog([Map<String, dynamic>? productRaw]) {
     final isEditing = productRaw != null;
     final nameCtrl = TextEditingController(text: productRaw?['name'] ?? '');
@@ -41,54 +80,27 @@ class _MenuScreenState extends State<MenuScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Nama Produk'),
-                    ),
+                    TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nama Produk')),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: priceCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Harga (Rp)'),
-                    ),
+                    TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga (Rp)')),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: category,
                       decoration: const InputDecoration(labelText: 'Kategori'),
-                      items: [
-                        ..._uiCategories.where((c) => c != 'ALL'),
-                        if (!_uiCategories.contains(category)) category,
-                      ].map((c) {
-                        return DropdownMenuItem(value: c, child: Text(c));
-                      }).toList(),
+                      items: [..._uiCategories.where((c) => c != 'ALL')].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                       onChanged: (v) => setStateModal(() => category = v!),
                     ),
                   ],
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Batal'),
-                ),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    minimumSize: const Size(0, 44),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                   onPressed: () async {
-                    final data = {
-                      'name': nameCtrl.text,
-                      'price': int.tryParse(priceCtrl.text) ?? 0,
-                      'category': category,
-                      'stock': isEditing ? productRaw['stock'] : 50,
-                    };
-
-                    if (isEditing) {
-                      await _supabase.from('product').update(data).eq('id', productRaw['id']);
-                    } else {
-                      await _supabase.from('product').insert(data);
-                    }
+                    final data = {'name': nameCtrl.text, 'price': int.tryParse(priceCtrl.text) ?? 0, 'category': category, 'stock': isEditing ? productRaw['stock'] : 50};
+                    if (isEditing) await _supabase.from('product').update(data).eq('id', productRaw['id']);
+                    else await _supabase.from('product').insert(data);
                     if (mounted) Navigator.pop(ctx);
                   },
                   child: Text(isEditing ? 'Simpan' : 'Tambah', style: const TextStyle(color: Colors.white)),
@@ -101,23 +113,18 @@ class _MenuScreenState extends State<MenuScreen> {
     );
   }
 
-  // Fungsi Hapus langsung ke Supabase
   void _confirmDelete(Map<String, dynamic> productRaw) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceContainerLowest,
         title: const Text('Hapus Menu'),
         content: Text('Yakin ingin menghapus ${productRaw['name']}?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          TextButton(
-            onPressed: () async {
-              await _supabase.from('product').delete().eq('id', productRaw['id']);
-              if (mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Hapus', style: TextStyle(color: AppColors.error)),
-          ),
+          TextButton(onPressed: () async {
+            await _supabase.from('product').delete().eq('id', productRaw['id']);
+            if (mounted) Navigator.pop(ctx);
+          }, child: const Text('Hapus', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -131,169 +138,206 @@ class _MenuScreenState extends State<MenuScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(24),
-              color: AppColors.surfaceContainerLowest,
+            
+            // ==================== HEADER + SEARCH BAR ROW ====================
+            Padding(
+              padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Kelola Menu', style: AppTextStyles.headlineMd, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 4),
-                        Text('Menampilkan Menu Live dari Supabase', style: AppTextStyles.labelSm),
-                      ],
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Daftar Menu Produk', style: AppTextStyles.headlineMd),
+                      const SizedBox(height: 4),
+                      Text('Kelola menu penjualan kasir secara real-time', style: AppTextStyles.bodySm),
+                    ],
                   ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      minimumSize: Size.zero, // Menimpa lebar default double.infinity dari global theme
-                    ),
-                    onPressed: () => _showProductDialog(),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, color: Colors.white, size: 20),
-                        SizedBox(width: 8),
-                        Text('Tambah Menu', style: TextStyle(color: Colors.white)),
-                      ],
-                    ),
-                  ),
+                  
+                  // SEARCH BAR & BUTTON ROW
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 280,
+                        height: 44,
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (val) {
+                            setState(() {
+                              _searchQuery = val;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Cari nama produk...',
+                            hintStyle: AppTextStyles.bodySm.copyWith(color: AppColors.onSurfaceVariant.withOpacity(0.6)),
+                            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.cancel_rounded, size: 18),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                      });
+                                    },
+                                  )
+                                : null,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                            fillColor: AppColors.surfaceContainerLowest, // ✅ FIXED: Menggunakan fillColor
+                            filled: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.outlineVariant.withOpacity(0.5)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.outlineVariant.withOpacity(0.5)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // TOMBOL TAMBAH PRODUK
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          minimumSize: const Size(0, 44),
+                        ),
+                        onPressed: () => _showProductDialog(),
+                        icon: const Icon(Icons.add, size: 20),
+                        label: const Text('Tambah', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  )
                 ],
               ),
             ),
-            const Divider(height: 1),
-            // Tabs Kategori
-            Container(
-              color: AppColors.surfaceContainerLowest,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _uiCategories.map((cat) {
-                  final isActive = cat == _selectedCategory;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedCategory = cat),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isActive ? AppColors.primary : AppColors.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(99),
+
+            // ==================== FILTER KATEGORI (CHIPS) ====================
+            SizedBox(
+              height: 50,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                scrollDirection: Axis.horizontal,
+                itemCount: _uiCategories.length,
+                itemBuilder: (context, index) {
+                  final cat = _uiCategories[index];
+                  final isSelected = _selectedCategory == cat;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ChoiceChip(
+                      label: Text(cat),
+                      selected: isSelected,
+                      selectedColor: AppColors.primary,
+                      backgroundColor: AppColors.surfaceContainerLowest,
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : AppColors.onSurface,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
                       ),
-                      child: Text(
-                        cat,
-                        style: AppTextStyles.labelSm.copyWith(
-                          color: isActive ? Colors.white : AppColors.onSurfaceVariant,
-                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
+                      side: BorderSide(
+                        color: isSelected ? Colors.transparent : AppColors.outlineVariant.withOpacity(0.4)
+                      ),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          _selectedCategory = cat;
+                        });
+                      },
                     ),
                   );
-                }).toList(),
+                },
               ),
             ),
-            const Divider(height: 1),
-            // Grid View terintegrasi Real-time Stream Supabase
+            const SizedBox(height: 8),
+
+            // ==================== STREAM & GRID VIEW DATA ====================
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _supabase.from('product').stream(primaryKey: ['id']).order('name'),
                 builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'Error: ${snapshot.error}',
-                          style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-                  }
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('Tidak ada data produk di database.'));
-                  }
-
-                  // Memfilter data berdasarkan kategori tab yang dipilih
-                  final allProducts = snapshot.data!;
-                  final filteredProducts = allProducts.where((p) {
-                    final cat = (p['category'] ?? 'KHS').toString().toLowerCase();
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  
+                  // FILTER LOGIC
+                  final filteredProducts = snapshot.data!.where((p) {
+                    final nameMatches = p['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
+                    
                     if (_selectedCategory == 'ALL') {
-                      return true;
-                    } else if (_selectedCategory == 'KHS') {
-                      return cat.startsWith('khs');
-                    } else if (_selectedCategory == 'Drinks') {
-                      return cat.startsWith('drinks');
-                    } else if (_selectedCategory == 'Vanila X Red Velvet') {
-                      return cat.contains('vanila') || cat.contains('velvet');
-                    } else if (_selectedCategory == 'Traditional Series') {
-                      return cat.contains('tradisional') || cat.contains('traditional');
-                    } else if (_selectedCategory == 'Mojito Series') {
-                      return cat.contains('mojito');
-                    } else if (_selectedCategory == 'Sticky Rice') {
-                      return cat.contains('sticky') || cat.contains('rice');
-                    } else if (_selectedCategory == 'Tea Series') {
-                      return cat.contains('tea');
-                    } else {
-                      return cat.contains(_selectedCategory.toLowerCase());
+                      return nameMatches;
                     }
+                    final categoryMatches = p['category'].toString().toLowerCase() == _selectedCategory.toLowerCase();
+                    return nameMatches && categoryMatches;
                   }).toList();
 
                   if (filteredProducts.isEmpty) {
-                    return const Center(child: Text('Menu pada kategori ini kosong.'));
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('🔍', style: TextStyle(fontSize: 40)),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Menu tidak ditemukan...',
+                            style: AppTextStyles.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    );
                   }
 
                   return GridView.builder(
                     padding: const EdgeInsets.all(24),
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 250,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.85,
+                      maxCrossAxisExtent: 220, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.85,
                     ),
                     itemCount: filteredProducts.length,
                     itemBuilder: (context, index) {
                       final p = filteredProducts[index];
-                      
-                      // Mengatur fallback default icon text/emoji
-                      String emojiIcon = '🍵'; 
-                      if (p['category'].toString().toLowerCase().contains('coklat')) emojiIcon = '🍫';
-                      if (p['category'].toString().toLowerCase().contains('strawberry')) emojiIcon = '🍓';
-
                       return Container(
                         decoration: BoxDecoration(
                           color: AppColors.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.outlineVariant),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.outlineVariant.withOpacity(0.3)),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(emojiIcon, style: const TextStyle(fontSize: 48)),
+                            // CONTAINER EMOJI MEWAH
+                            Container(
+                              width: 70, height: 70,
+                              decoration: BoxDecoration(
+                                color: _getPastelColor(p['category'] ?? ''),
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                              ),
+                              child: Center(child: Text(_getEmoji(p['category'] ?? ''), style: const TextStyle(fontSize: 32))),
+                            ),
                             const SizedBox(height: 12),
-                            Text(p['name'] ?? '', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: Text(
+                                p['name'] ?? '', 
+                                style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center, // ✅ FIXED: Menggunakan TextAlign.center
+                              ),
+                            ),
                             Text('Rp ${p['price']}', style: AppTextStyles.labelSm.copyWith(color: AppColors.primary)),
-                            const SizedBox(height: 12),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined, size: 20),
-                                  onPressed: () => _showProductDialog(p),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
-                                  onPressed: () => _confirmDelete(p),
-                                ),
+                                IconButton(icon: const Icon(Icons.edit_outlined, size: 18), onPressed: () => _showProductDialog(p)),
+                                IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), onPressed: () => _confirmDelete(p)),
                               ],
                             ),
                           ],

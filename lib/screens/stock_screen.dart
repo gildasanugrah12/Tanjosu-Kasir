@@ -14,6 +14,58 @@ class StockScreen extends StatefulWidget {
 
 class _StockScreenState extends State<StockScreen> {
   String _filter = 'Semua';
+  String _searchQuery = ''; // 🟢 Taruh query pencarian di sini rill
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // 📥 Pop-up Dialog untuk Edit Angka Stok Langsung
+  void _showEditStockDialog(BuildContext context, Product product, StockProvider provider) {
+    final TextEditingController qtyController = 
+        TextEditingController(text: product.stock.toString());
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Edit Stok ${product.name}', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: qtyController,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Jumlah Stok Baru',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Batal', style: TextStyle(color: AppColors.onSurfaceVariant)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                int newQty = int.tryParse(qtyController.text) ?? 0;
+                provider.setStock(product.id, newQty); // Panggil fungsi bawaan providermu rill
+                Navigator.pop(context);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,11 +73,21 @@ class _StockScreenState extends State<StockScreen> {
     final products = stockProvider.products;
     final lowStock = stockProvider.lowStockProducts.length;
 
+    // 🟢 Logika filter Kategori + Search digabung langsung di sini jirr!
     List<Product> displayedProducts = products;
+    
+    // 1. Filter Kategori dulu
     if (_filter == 'Stok Rendah') {
       displayedProducts = products.where((p) => p.stock <= p.minStock && p.stock > 0).toList();
     } else if (_filter == 'Habis') {
       displayedProducts = products.where((p) => p.stock <= 0).toList();
+    }
+
+    // 2. Kemudian filter berdasarkan ketikan Search Bar
+    if (_searchQuery.isNotEmpty) {
+      displayedProducts = displayedProducts
+          .where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
     }
 
     return Container(
@@ -35,7 +97,7 @@ class _StockScreenState extends State<StockScreen> {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
             color: AppColors.surfaceContainerLowest,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,6 +152,39 @@ class _StockScreenState extends State<StockScreen> {
                       ),
                     );
                   }).toList(),
+                ),
+                const SizedBox(height: 16),
+                
+                // 🟢 SEARCH BAR AMAN BEBAS EROR JIRR
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Cari nama produk...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 20),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = ''; // Reset pencarian rill
+                              });
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    fillColor: AppColors.surfaceContainerLow,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value; // Trigger build ulang otomatis jirr
+                    });
+                  },
                 ),
               ],
             ),
@@ -170,13 +265,31 @@ class _StockScreenState extends State<StockScreen> {
                                       flex: 1,
                                       child: Text(p.category, style: AppTextStyles.bodySm),
                                     ),
-                                    // Stock qty
+                                    // Angka Stok Bisa Diklik Langsung jirr!
                                     Expanded(
                                       flex: 1,
-                                      child: Text(
-                                        '${p.stock}',
-                                        textAlign: TextAlign.center,
-                                        style: AppTextStyles.headlineSm.copyWith(color: isOut ? AppColors.error : AppColors.onSurface),
+                                      child: InkWell(
+                                        onTap: () => _showEditStockDialog(context, p, stockProvider),
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                '${p.stock}',
+                                                style: AppTextStyles.headlineSm.copyWith(
+                                                  color: isOut ? AppColors.error : AppColors.onSurface,
+                                                  decoration: TextDecoration.underline,
+                                                  decorationStyle: TextDecorationStyle.dashed,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Icon(Icons.edit, size: 14, color: isOut ? AppColors.error.withOpacity(0.6) : AppColors.onSurfaceVariant.withOpacity(0.6)),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     // Status

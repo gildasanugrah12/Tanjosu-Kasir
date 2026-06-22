@@ -4,7 +4,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../providers/transaction_provider.dart';
 
-enum NavItem { register, stock, menu, history, dapur, dashboard, settings }
+enum NavItem { register, stock, menu, history, dapur, dashboard, laporan, settings }
 
 class SideNavBar extends StatelessWidget {
   final NavItem activeItem;
@@ -96,7 +96,7 @@ class SideNavBar extends StatelessWidget {
                     _NavItemWidget(
                       icon: Icons.bar_chart_rounded,
                       label: 'Laporan',
-                      item: NavItem.dashboard,
+                      item: NavItem.laporan,
                       activeItem: activeItem,
                       onTap: onItemSelected,
                     ),

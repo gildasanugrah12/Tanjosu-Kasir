@@ -14,6 +14,8 @@ import 'payment_screen.dart';
 import 'stock_screen.dart';
 import 'menu_screen.dart';
 import 'kitchen_screen.dart';
+import 'settings_screen.dart';
+import 'report_screen.dart';
 
 class MainShell extends StatefulWidget {
   final String role; // Menerima data role ('owner' / 'kasir') dari login_screen
@@ -122,6 +124,8 @@ class _MainShellState extends State<MainShell> {
         return const HistoryScreen();
       case NavItem.dashboard:
         return const DashboardScreen();
+      case NavItem.laporan:
+        return const ReportScreen();
       case NavItem.stock:
         return const StockScreen();
       case NavItem.menu:
@@ -129,7 +133,7 @@ class _MainShellState extends State<MainShell> {
       case NavItem.dapur:
         return const KitchenScreen();
       case NavItem.settings:
-        return const _SettingsPlaceholder();
+        return SettingsScreen(role: widget.role);
     }
   }
 }
@@ -442,23 +446,4 @@ class _PosMainCanvasState extends State<PosMainCanvas> {
     return 'Selamat $timeGreeting, $displayRole';
   }
 }
-
-class _SettingsPlaceholder extends StatelessWidget {
-  const _SettingsPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('⚙️', style: TextStyle(fontSize: 64)),
-          const SizedBox(height: 16),
-          Text('Setelan', style: AppTextStyles.headlineMd),
-          const SizedBox(height: 8),
-          Text('Segera hadir', style: AppTextStyles.bodySm),
-        ],
-      ),
-    );
-  }
-}
+
